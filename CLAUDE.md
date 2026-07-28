@@ -50,8 +50,20 @@ The filesystem *is* the menu hierarchy. Naming (see [core/model.py](core/model.p
 - `01_lights/` (folder) → **submenu**.
 - `01_on.py` (file) → **command button**; its first stdout line shows on press.
 - `01_cpu.fb.py` (`.fb` before the extension) → **feedback button**; polled every `FEEDBACK_INTERVAL`s and on menu entry, stdout → button text.
+- `01_install.pdq` → **PDQ Deploy button**; a JSON config, not an executable (see below).
 
-Scripts run by extension ([core/runner.py](core/runner.py) `RUNNERS`): `.py .sh .ps1 .bat .cmd`, else executed directly. `cwd` is the script's own folder.
+Scripts run by extension ([core/runner.py](core/runner.py) `RUNNERS`): `.py .sh .ps1 .bat .cmd`, else executed directly. `cwd` is the script's own folder. `run_script` special-cases `.pdq` before the generic path.
+
+## PDQ Deploy integration
+
+A `.pdq` button is a JSON config describing a PDQ Deploy action, run via [core/pdq.py](core/pdq.py) (which shells out to `PDQDeploy.exe`, `PDQ_DEPLOY_EXE` in config):
+
+- `{"package": "7-Zip", "targets": ["PC1","PC2"]}` → `Deploy -Package -Targets` (specific PCs).
+- `{"schedule": 12}` → `StartSchedule 12` — the only way to hit a **Target List** (pre-make a Schedule in PDQ that points at the list; the CLI can't enumerate or deploy to Target Lists directly). A `note` key is ignored.
+
+`runner.run_script` routes `.pdq` to `pdq.run_config` (uses `PDQ_TIMEOUT`, not the command timeout); the deployment id / output shows on the button. Discovery helpers to fill in configs: `python -m core.pdq packages` and `python -m core.pdq schedules`.
+
+**Requirements** (all real constraints of the PDQ CLI): Enterprise license, PDQ Deploy installed on **this** machine (CLI is local-only), the PDQ background service running, and `main.py` started **elevated (as admin)** — otherwise `Deploy`/`StartSchedule` fail. `GetPackageNames` is the only Free-tier command.
 
 ## Grid & layout
 

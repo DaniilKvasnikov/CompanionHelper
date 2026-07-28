@@ -1,0 +1,5 @@
+{
+  "note": "Deploy a package to specific PCs. Package names: python -m core.pdq packages",
+  "package": "7-Zip",
+  "targets": ["RECEPTION-01"]
+}

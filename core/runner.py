@@ -36,6 +36,10 @@ def _argv(path: Path) -> list[str]:
 
 
 def run_script(path: Path, timeout: float) -> RunResult:
+    if path.suffix.lower() == ".pdq":
+        from . import pdq  # local import to avoid a cycle at module load
+
+        return RunResult(*pdq.run_config(path))  # uses PDQ_TIMEOUT, not the command timeout
     try:
         proc = subprocess.run(
             _argv(path),

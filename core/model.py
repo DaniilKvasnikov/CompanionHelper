@@ -13,8 +13,10 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Extensions we know how to run. See runner.RUNNERS for the actual commands.
-SCRIPT_EXTS = {".py", ".sh", ".ps1", ".bat", ".cmd", ".exe", ""}
+# Extensions we treat as buttons. `.pdq` is a JSON config for a PDQ Deploy
+# action (handled in runner via core.pdq); the rest are executed directly.
+# See runner.RUNNERS for the actual commands.
+SCRIPT_EXTS = {".py", ".sh", ".ps1", ".bat", ".cmd", ".exe", ".pdq", ""}
 
 
 @dataclass
