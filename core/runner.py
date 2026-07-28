@@ -30,6 +30,10 @@ class RunResult:
         out = self.stdout.strip()
         return out.splitlines()[0] if out else ""
 
+    def summary(self) -> str:
+        """One line to show on a button: first output line, else OK / stderr / ERR."""
+        return self.first_line() or ("OK" if self.ok else (self.stderr.strip() or "ERR"))
+
 
 def _argv(path: Path) -> list[str]:
     return RUNNERS.get(path.suffix.lower(), lambda p: [str(p)])(path)

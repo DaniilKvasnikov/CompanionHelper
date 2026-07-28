@@ -101,12 +101,12 @@ def handle_press(page: str, row: int, col: int) -> None:
 
     # A button press: dynamic ActionNode, or a file-backed CommandNode.
     if isinstance(node, ActionNode):
-        _run_action(page, st, row, col, slot, node)
+        _run_action(page, st, row, col, node)
     else:
         _run_command(page, st, row, col, slot, node)
 
 
-def _run_action(page, st, row, col, slot, node: ActionNode) -> None:
+def _run_action(page, st, row, col, node: ActionNode) -> None:
     try:
         text = node.on_press() or ""
     except Exception as e:  # noqa: BLE001
@@ -130,8 +130,7 @@ def _run_action(page, st, row, col, slot, node: ActionNode) -> None:
 def _run_command(page, st, row, col, slot, node) -> None:
     timeout = FEEDBACK_TIMEOUT if slot.kind == Kind.FEEDBACK else SCRIPT_TIMEOUT
     res = run_script(node.path, timeout)
-    line = res.first_line() or ("OK" if res.ok else "ERR")
-    text = f"{slot.label}\n{line}"
+    text = f"{slot.label}\n{res.summary()}"
     if slot.kind == Kind.FEEDBACK:
         st.feedback_values[node.key] = text
         bg, fg = COLORS[Kind.FEEDBACK]

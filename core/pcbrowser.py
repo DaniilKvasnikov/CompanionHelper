@@ -19,6 +19,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from . import pdq
+from .runner import RunResult
 from .config import (
     COLORS,
     PC_DOWN,
@@ -217,6 +218,4 @@ def _pc_packages(node) -> list:
 
 
 def _deploy(package: str, host: str) -> str:
-    code, out, err = pdq.run(pdq.deploy_args(package, [host]))
-    first = out.strip().splitlines()
-    return first[0] if first else ("OK" if code == 0 else (err.strip() or "ERR"))
+    return RunResult(*pdq.run(pdq.deploy_args(package, [host]))).summary()
