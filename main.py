@@ -44,8 +44,7 @@ def handle_button_press(page: str, row: int, col: int):
 def reload_menus():
     """Rebuild the menu tree from disk and redraw every active page."""
     dispatcher.reload_tree()
-    for page in state.all_pages():
-        dispatcher.render_page(page)
+    dispatcher.render_all_pages()
     return {"status": "reloaded"}
 
 

@@ -180,6 +180,11 @@ def _pc_children(node) -> list:
     return kids
 
 
+def _select_list(name: str) -> str:
+    set_active(name)
+    return ""
+
+
 def _list_picker(node) -> list:
     current = active_list()
     out: list = []
@@ -191,7 +196,7 @@ def _list_picker(node) -> list:
                 label=label,
                 kind="menu",
                 after="back",
-                on_press=lambda n=name: (set_active(n), "")[1],
+                on_press=lambda n=name: _select_list(n),
             )
         )
     return out
