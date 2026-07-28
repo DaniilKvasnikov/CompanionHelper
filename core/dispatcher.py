@@ -6,7 +6,7 @@ import logging
 from . import loader, render, state
 from .config import COLORS, FEEDBACK_TIMEOUT, SCRIPT_TIMEOUT
 from .layout import build_layout
-from .model import MenuNode
+from .model import ActionNode, MenuNode
 from .runner import run_script
 
 log = logging.getLogger("dispatcher")
@@ -17,8 +17,17 @@ _tree: MenuNode = loader.load_tree()
 
 def reload_tree() -> None:
     global _tree
+    from . import pcbrowser
+
+    pcbrowser.refresh_catalog()  # re-read packages / target lists from the DB
     _tree = loader.load_tree()
-    log.info("menu tree reloaded from %s", _tree.path)
+    log.info("menu tree reloaded")
+
+
+def render_all_pages() -> None:
+    """Redraw every active page (used when ping status changes)."""
+    for page in state.all_pages():
+        render_page(page)
 
 
 def _menu_for(st) -> MenuNode:
@@ -62,37 +71,70 @@ def handle_press(page: str, row: int, col: int) -> None:
         slot = cells.get((row, col))
         if slot is None:
             return
+        node = slot.node
         kind = slot.kind
+        nav = None
 
         if kind == "back" and st.path:
             st.path.pop()
             st.page_index = 0
+            nav = "render"
         elif kind == "prev":
             st.page_index = max(0, st.page_index - 1)
+            nav = "render"
         elif kind == "next":
             st.page_index = min(pages - 1, st.page_index + 1)
-        elif kind == "menu":
-            st.path.append(slot.node.name)
+            nav = "render"
+        elif isinstance(node, MenuNode):  # drill into a submenu (static or dynamic)
+            st.path.append(node.name)
             st.page_index = 0
+            nav = "enter"
 
-    # Navigation -> redraw the whole page (+ prime feedback on the new menu).
-    if kind in ("back", "prev", "next", "menu"):
+    if nav == "render":
         render_page(page)
-        if kind in ("back", "menu"):
-            refresh_feedback(page)
+        return
+    if nav == "enter":
+        render_page(page)
+        refresh_feedback(page)
         return
 
-    # Command / feedback press -> run it and show the result on that button.
-    node = slot.node
-    timeout = FEEDBACK_TIMEOUT if kind == "feedback" else SCRIPT_TIMEOUT
+    # A button press: dynamic ActionNode, or a file-backed CommandNode.
+    if isinstance(node, ActionNode):
+        _run_action(page, st, row, col, slot, node)
+    else:
+        _run_command(page, st, row, col, slot, node)
+
+
+def _run_action(page, st, row, col, slot, node: ActionNode) -> None:
+    try:
+        text = node.on_press() or ""
+    except Exception as e:  # noqa: BLE001
+        text = f"ERR\n{e}"
+    if node.after == "back":
+        with state.lock:
+            if st.path:
+                st.path.pop()
+                st.page_index = 0
+        render_page(page)
+        refresh_feedback(page)
+    elif node.after == "rerender":
+        render_page(page)
+        refresh_feedback(page)
+    else:  # 'text' -> show the result on this button
+        label = f"{node.label}\n{text}" if text else node.label
+        bg, fg = (node.color_fn() if node.color_fn else None) or COLORS.get(node.kind, COLORS["command"])
+        render.update_cell(page, st, row, col, label, bg, fg)
+
+
+def _run_command(page, st, row, col, slot, node) -> None:
+    timeout = FEEDBACK_TIMEOUT if slot.kind == "feedback" else SCRIPT_TIMEOUT
     res = run_script(node.path, timeout)
     line = res.first_line() or ("OK" if res.ok else "ERR")
-    if kind == "feedback":
-        text = f"{slot.label}\n{line}"
+    text = f"{slot.label}\n{line}"
+    if slot.kind == "feedback":
         st.feedback_values[node.key] = text
         bg, fg = COLORS["feedback"]
     else:
-        text = f"{slot.label}\n{line}"
         bg, fg = COLORS["command"] if res.ok else COLORS["back"]
     render.update_cell(page, st, row, col, text, bg, fg)
     log.info("ran %s -> code=%s", node.path.name, res.code)

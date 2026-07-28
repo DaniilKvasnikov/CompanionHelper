@@ -37,6 +37,16 @@ PDQ_DEPLOY_EXE = r"C:\Program Files (x86)\Admin Arsenal\PDQ Deploy\PDQDeploy.exe
 PDQ_DB_PATH = r"C:\ProgramData\Admin Arsenal\PDQ Deploy\Database.db"
 PDQ_TIMEOUT = 60.0         # seconds, for a PDQ CLI call
 
+# --- PC browser (dynamic menu from the active PDQ target list) ------------
+PING_INTERVAL = 15.0       # seconds between ping sweeps of the active list
+PING_TIMEOUT_MS = 800      # per-host ping wait
+PING_WORKERS = 16          # parallel pings
+
+# Ping status colors for PC buttons (bg, fg)
+PC_UP = ("#12421d", "#8affa0")       # green  - responded
+PC_DOWN = ("#4a1414", "#ff9a9a")     # red    - no reply
+PC_UNKNOWN = ("#2b2b2b", "#cccccc")  # gray   - not pinged yet
+
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
     "menu":     ("#12233b", "#ffffff"),  # submenu / folder

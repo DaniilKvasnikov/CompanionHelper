@@ -1,16 +1,23 @@
 """Build the in-memory menu tree from the `menus/` folder hierarchy."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from .config import MENUS_DIR
-from .model import CommandNode, MenuNode, is_feedback, is_script, make_label
+from .model import CommandNode, MenuNode, children_of, is_feedback, is_script, make_label
 
 
 def load_tree(base: Path = MENUS_DIR) -> MenuNode:
     root = MenuNode(name="", path=base, label="")
     if base.is_dir():
         _fill(root)
+    try:
+        from . import pcbrowser  # dynamic, DB-backed menus attach here
+
+        pcbrowser.attach(root)
+    except Exception as e:  # never let a dynamic menu break the static tree
+        logging.getLogger("loader").warning("pcbrowser attach failed: %s", e)
     return root
 
 
@@ -36,11 +43,14 @@ def _fill(menu: MenuNode) -> None:
 
 
 def resolve(root: MenuNode, path_names: list[str]) -> MenuNode:
-    """Walk from `root` following folder names; fall back to root if stale."""
+    """Walk from `root` following names; fall back to node if a step is stale.
+
+    Uses `children_of` so dynamic (provider) menus are materialized as we walk.
+    """
     node = root
     for name in path_names:
         match = next(
-            (c for c in node.children if isinstance(c, MenuNode) and c.name == name),
+            (c for c in children_of(node) if isinstance(c, MenuNode) and c.name == name),
             None,
         )
         if match is None:

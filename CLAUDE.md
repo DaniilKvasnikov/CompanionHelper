@@ -71,6 +71,17 @@ A `.pdq` button is a JSON config (`note` keys ignored), resolved by `args_from_c
 
 **Requirements**: Enterprise license, PDQ installed on **this** machine (CLI is local-only), background service running, and `main.py` started **elevated (as admin)** or `Deploy` fails with permission denied. Note the install path is `Program Files (x86)`.
 
+## Dynamic menus (providers) and the PC browser
+
+Menus can be generated at runtime, not just from folders. Two node types in [core/model.py](core/model.py) beyond the file-backed `CommandNode`:
+
+- **`MenuNode.provider`** — a callable `provider(node) -> [child nodes]`. `children_of(node)` returns the provider's output if set, else static `children`. `loader.resolve` and `layout.build_layout` both go through `children_of`, so dynamic branches materialize lazily as you navigate. `context` carries data down a branch (e.g. which PC); `color_fn` gives a button a runtime color.
+- **`ActionNode`** — a button that runs a Python callable (`on_press`) instead of a file. `after` decides what follows: `'text'` (show the returned string on the button), `'rerender'`, or `'back'` (pop up a level, e.g. after picking from a list).
+
+In the dispatcher, `MenuNode` presses drill in; everything else routes by node type — `ActionNode` → `_run_action`, `CommandNode` → `_run_command`. `Slot.color` (from a node's `color_fn`) overrides the kind color in `render`.
+
+[core/pcbrowser.py](core/pcbrowser.py) is the one dynamic feature so far — a "ПК" button on the main menu (`attach` inserts it). Inside: a "change list" picker submenu, then one button per host in the **active PDQ target list** (default: first list), each colored by ping. Selecting a host opens a package menu; pressing a package deploys it to **that single host**. Names come from the PDQ DB, cached in the module so providers never hit the DB per render; refresh on start/reload. A background ping sweep ([core/pcbrowser.py](core/pcbrowser.py) `start`, every `PING_INTERVAL`) updates status and calls `dispatcher.render_all_pages` — the render diff means only recolored buttons are pushed. `_ping_host` requires an actual reply (`TTL=` in output), since Windows `ping` returns 0 even when unreachable.
+
 ## Grid & layout
 
 Fixed 8×4 (Stream Deck XL). Content fills rows 0–2 in reading order (24 slots/page); the bottom row (`NAV_ROW`) is reserved for **Back** (bottom-left) and **Prev/Next** paging (bottom-right), shown only when applicable. Change `GRID_ROWS`/`GRID_COLS`/`NAV_ROW` in [core/config.py](core/config.py) for other deck sizes.

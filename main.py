@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from core import config, dispatcher, feedback, state
+from core import config, dispatcher, feedback, pcbrowser, state
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("main")
@@ -18,12 +18,15 @@ log = logging.getLogger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Draw the root menu on the mapped page and start polling feedback buttons.
+    # Load PDQ package/target-list names, draw the root menu, then start the
+    # feedback poller and the PC ping sweep (which redraws pages as hosts change).
+    pcbrowser.refresh_catalog()
     dispatcher.render_page(config.DEFAULT_PAGE)
     dispatcher.refresh_feedback(config.DEFAULT_PAGE)
     feedback.start_poller(
         dispatcher.refresh_feedback, state.all_pages, config.FEEDBACK_INTERVAL
     )
+    pcbrowser.start(dispatcher.render_all_pages)
     yield
 
 

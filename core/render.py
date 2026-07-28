@@ -27,7 +27,7 @@ def _cell_style(slot: Slot | None, st: PageState):
         text = st.feedback_values.get(slot.node.key, slot.label)
     else:
         text = slot.label
-    bg, fg = _colors(slot.kind)
+    bg, fg = slot.color or _colors(slot.kind)  # color_fn override (e.g. ping)
     return (text, bg, fg)
 
 

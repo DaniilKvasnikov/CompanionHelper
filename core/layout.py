@@ -10,7 +10,7 @@ import math
 from dataclasses import dataclass
 
 from .config import GRID_COLS, NAV_ROW
-from .model import CommandNode, MenuNode
+from .model import ActionNode, CommandNode, MenuNode, children_of
 
 # Cells available for menu items (everything above the nav row).
 CONTENT_CELLS = [(r, c) for r in range(NAV_ROW) for c in range(GRID_COLS)]
@@ -25,12 +25,23 @@ NEXT_CELL = (NAV_ROW, GRID_COLS - 1)
 class Slot:
     kind: str            # menu | command | feedback | back | prev | next
     label: str
-    node: object = None  # MenuNode or CommandNode for content slots
+    node: object = None  # content node (MenuNode / CommandNode / ActionNode)
+    color: tuple | None = None  # (bg, fg) override from a node's color_fn
+
+
+def _kind(child) -> str:
+    if isinstance(child, MenuNode):
+        return "menu"
+    if isinstance(child, ActionNode):
+        return child.kind
+    if isinstance(child, CommandNode) and child.feedback:
+        return "feedback"
+    return "command"
 
 
 def build_layout(menu: MenuNode, depth: int, page_index: int):
     """Return (cells: dict[(row,col)->Slot], pages: int, page_index: int)."""
-    children = menu.children
+    children = children_of(menu)
     pages = max(1, math.ceil(len(children) / PER_PAGE))
     page_index = max(0, min(page_index, pages - 1))
 
@@ -39,13 +50,13 @@ def build_layout(menu: MenuNode, depth: int, page_index: int):
 
     cells: dict[tuple[int, int], Slot] = {}
     for cell, child in zip(CONTENT_CELLS, view):
-        if isinstance(child, MenuNode):
-            kind = "menu"
-        elif isinstance(child, CommandNode) and child.feedback:
-            kind = "feedback"
-        else:
-            kind = "command"
-        cells[cell] = Slot(kind=kind, label=child.label, node=child)
+        color_fn = getattr(child, "color_fn", None)
+        cells[cell] = Slot(
+            kind=_kind(child),
+            label=child.label,
+            node=child,
+            color=color_fn() if color_fn else None,
+        )
 
     if depth > 0:
         cells[BACK_CELL] = Slot(kind="back", label="Back")
