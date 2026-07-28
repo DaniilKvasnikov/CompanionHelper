@@ -11,6 +11,10 @@ A modular menu system for a Stream Deck driven through [Bitfocus Companion](http
 ```bash
 pip install -r requirements.txt   # fastapi, uvicorn
 python main.py                    # serves on 0.0.0.0:7878
+
+pip install -r requirements-dev.txt   # adds pytest
+python -m pytest                       # run tests (tests/, ~0.3s, no live Companion/PDQ)
+python -m pytest tests/test_pdq.py -q  # a single file
 ```
 
 - `POST /press?page=&row=&col=` — called by every deck button on press (Companion → here, HTTP).
@@ -107,7 +111,7 @@ These are the principles the codebase already follows. Match them when extending
 
 Recorded so it isn't rediscovered each session. Roughly prioritized:
 
-- **No automated tests.** The biggest gap. Everything is verified with throwaway scripts. Highest-value first target: a `tests/` (pytest) covering pure functions — `make_label`, `build_layout` pagination/nav-row, `pdq.deploy_args`/`args_from_config`, `render` transport selection, and provider navigation — since these need no live Companion/PDQ.
+- **Test coverage is partial.** `tests/` (pytest) now covers the pure/near-pure layer — `make_label`, `children_of`, `build_layout` (kinds/nav/pagination/color), `pdq.deploy_args`/`args_from_config`/`run_config`, `render` transport selection, and dispatcher press/nav (with `companion`/`run_script` monkeypatched). Still uncovered: the DB reads in `pdq`/`pcbrowser` (need a fixture DB), the OSC wire encoding in `osc`, and the background pollers. Tests take a synthetic tree via `monkeypatch.setattr(dispatcher, "_tree", ...)` and clear `state._states`.
 - **PDQ DB reads copy the whole file each call.** `pdq._connect` snapshots `Database.db`(+wal/shm) per call, so `refresh_catalog` does ~3 copies. Fine at start/reload frequency; batch into one snapshot if it ever gets hot.
 - **Ping sweep redraws every page.** `render_all_pages` rebuilds layout for all pages every `PING_INTERVAL` even if none is on the PC subtree. Cheap (the diff pushes nothing when unchanged) but wasteful; could skip pages with no `color_fn` nodes.
 - **Minor duplication.** Deploy-result "first line or OK/ERR" formatting exists in both `pcbrowser._deploy` and `dispatcher._run_command`; `_run_command`/`_run_action` take both `slot` and `node`.
