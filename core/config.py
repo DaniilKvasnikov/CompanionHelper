@@ -29,10 +29,12 @@ FEEDBACK_TIMEOUT = 5.0     # seconds, for feedback (.fb) scripts
 FEEDBACK_INTERVAL = 5.0    # seconds between feedback polls of the active menu
 
 # --- PDQ Deploy integration -----------------------------------------------
-# .pdq buttons shell out to this CLI. Requires an Enterprise license, the PDQ
-# background service running, and this server started elevated (as admin).
-# The CLI is local-only: PDQ Deploy must be installed on THIS machine.
-PDQ_DEPLOY_EXE = r"C:\Program Files\Admin Arsenal\PDQ Deploy\PDQDeploy.exe"
+# .pdq buttons DEPLOY via this CLI (needs Enterprise license, PDQ background
+# service running, and this server started elevated/as admin). The CLI is
+# local-only. Package/target-list names are READ from PDQ's SQLite database,
+# because the CLI has no command to enumerate packages or target lists.
+PDQ_DEPLOY_EXE = r"C:\Program Files (x86)\Admin Arsenal\PDQ Deploy\PDQDeploy.exe"
+PDQ_DB_PATH = r"C:\ProgramData\Admin Arsenal\PDQ Deploy\Database.db"
 PDQ_TIMEOUT = 60.0         # seconds, for a PDQ CLI call
 
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---

@@ -1,4 +1,0 @@
-{
-  "note": "Deploy to a Target List: pre-make a Schedule in PDQ (package + list), put its id here. Find ids with: python -m core.pdq schedules",
-  "schedule": 1
-}

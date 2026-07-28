@@ -56,14 +56,20 @@ Scripts run by extension ([core/runner.py](core/runner.py) `RUNNERS`): `.py .sh 
 
 ## PDQ Deploy integration
 
-A `.pdq` button is a JSON config describing a PDQ Deploy action, run via [core/pdq.py](core/pdq.py) (which shells out to `PDQDeploy.exe`, `PDQ_DEPLOY_EXE` in config):
+Split across two channels ([core/pdq.py](core/pdq.py)), because PDQ Deploy 20.x separates them:
 
-- `{"package": "7-Zip", "targets": ["PC1","PC2"]}` → `Deploy -Package -Targets` (specific PCs).
-- `{"schedule": 12}` → `StartSchedule 12` — the only way to hit a **Target List** (pre-make a Schedule in PDQ that points at the list; the CLI can't enumerate or deploy to Target Lists directly). A `note` key is ignored.
+- **Reads** (package / target-list names) come from PDQ's **SQLite database** (`PDQ_DB_PATH`) — the CLI has no command to enumerate packages or target lists. `_connect` copies `Database.db` + `-wal` + `-shm` to a temp dir and reads the copy: reading the live WAL DB read-only silently misses data still in the `-wal` (Windows read-only-WAL limitation), and the copy also avoids locking the running DB.
+- **Deploys** go through `PDQDeploy.exe` (`PDQ_DEPLOY_EXE`).
 
-`runner.run_script` routes `.pdq` to `pdq.run_config` (uses `PDQ_TIMEOUT`, not the command timeout); the deployment id / output shows on the button. Discovery helpers to fill in configs: `python -m core.pdq packages` and `python -m core.pdq schedules`.
+A `.pdq` button is a JSON config (`note` keys ignored), resolved by `args_from_config`:
 
-**Requirements** (all real constraints of the PDQ CLI): Enterprise license, PDQ Deploy installed on **this** machine (CLI is local-only), the PDQ background service running, and `main.py` started **elevated (as admin)** — otherwise `Deploy`/`StartSchedule` fail. `GetPackageNames` is the only Free-tier command.
+- `{"package":"Install","targets":["PC1","PC2"]}` → `Deploy -Package -Targets` (specific PCs).
+- `{"package":"Install","target_list":"All"}` → members read from the DB and **expanded into `-Targets`**. This is how we hit a Target List — the CLI has no `-TargetList` option, so we don't rely on Schedules.
+- `{"schedule":12}` → `StartSchedule 12` (only if you keep Schedules in PDQ).
+
+`runner.run_script` routes `.pdq` to `pdq.run_config` (uses `PDQ_TIMEOUT`); the deployment output shows on the button. Discovery: `python -m core.pdq packages | lists | members "<list>"`.
+
+**Requirements**: Enterprise license, PDQ installed on **this** machine (CLI is local-only), background service running, and `main.py` started **elevated (as admin)** or `Deploy` fails with permission denied. Note the install path is `Program Files (x86)`.
 
 ## Grid & layout
 

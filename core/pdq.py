@@ -1,30 +1,89 @@
-"""PDQ Deploy CLI wrapper (Enterprise, local machine, elevated).
+"""PDQ Deploy integration.
 
-Buttons of type `.pdq` carry a small JSON config describing what to run:
+Two halves, because PDQ Deploy 20.x splits them:
+  - READ package / target-list names from PDQ's SQLite database (the CLI has
+    no command to enumerate them).
+  - DEPLOY via the CLI (PDQDeploy.exe), which needs Enterprise + admin + the
+    background service. There is no `-TargetList` option, so to deploy to a
+    Target List we expand its members from the DB into `-Targets`.
 
-    {"package": "7-Zip", "targets": ["PC1", "PC2"]}   -> Deploy to specific PCs
-    {"schedule": 12}                                   -> StartSchedule (Target List)
+`.pdq` button config (JSON):
+    {"package": "Install", "targets": ["PC1","PC2"]}   -> Deploy to those PCs
+    {"package": "Install", "target_list": "Wall"}       -> expand list from DB
+    {"schedule": 12}                                     -> StartSchedule
 
-Discover names/ids to put in those configs:
-
-    python -m core.pdq packages     # PDQDeploy.exe GetPackageNames
-    python -m core.pdq schedules     # PDQDeploy.exe GetSchedules  (id + name)
-
-The CLI can't enumerate or deploy directly to a Target List; deploy to a list
-by pre-making a Schedule in PDQ and referencing it via {"schedule": <id>}.
+Discover what exists:
+    python -m core.pdq packages
+    python -m core.pdq lists
+    python -m core.pdq members "Wall"
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import shutil
+import sqlite3
 import subprocess
+import tempfile
 from pathlib import Path
 
-from .config import PDQ_DEPLOY_EXE, PDQ_TIMEOUT
+from .config import PDQ_DB_PATH, PDQ_DEPLOY_EXE, PDQ_TIMEOUT
 
 # (exit code, stdout, stderr)
 Result = tuple[int, str, str]
 
 
+# --- database reads (packages, target lists) ------------------------------
+@contextlib.contextmanager
+def _connect():
+    """Yield a connection to a private snapshot of the live PDQ DB.
+
+    Reading the live WAL database read-only misses data still in the -wal file
+    (a Windows read-only-WAL limitation). So copy Database.db + -wal + -shm to
+    a temp dir and open the copy, which applies the WAL and gives a consistent
+    snapshot without ever touching (or locking) the running database.
+    """
+    tmpdir = tempfile.mkdtemp(prefix="pdqdb-")
+    dst = os.path.join(tmpdir, "Database.db")
+    try:
+        for suffix in ("", "-wal", "-shm"):
+            src = PDQ_DB_PATH + suffix
+            if os.path.exists(src):
+                shutil.copy2(src, dst + suffix)
+        con = sqlite3.connect(dst)
+        try:
+            yield con
+        finally:
+            con.close()
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def list_packages() -> list[str]:
+    with _connect() as con:
+        return [r[0] for r in con.execute("SELECT Name FROM Packages ORDER BY Name")]
+
+
+def list_target_lists() -> list[str]:
+    with _connect() as con:
+        return [r[0] for r in con.execute("SELECT Name FROM TargetLists ORDER BY Name")]
+
+
+def target_list_members(name: str) -> list[str]:
+    query = """
+        SELECT t.Name
+        FROM TargetLists tl
+        JOIN TargetListTargets m ON m.TargetListId = tl.TargetListId
+        JOIN Targets t ON t.TargetId = m.TargetId
+        WHERE tl.Name = ?
+        ORDER BY t.Name
+    """
+    with _connect() as con:
+        return [r[0] for r in con.execute(query, (name,))]
+
+
+# --- CLI deploy -----------------------------------------------------------
 def deploy_args(package: str, targets: list[str]) -> list[str]:
     args = ["Deploy", "-Package", package]
     if targets:
@@ -37,11 +96,25 @@ def schedule_args(schedule_id) -> list[str]:
 
 
 def args_from_config(cfg: dict) -> list[str]:
+    """Turn a `.pdq` config into PDQDeploy.exe args (may read the DB)."""
     if cfg.get("schedule") is not None:
         return schedule_args(cfg["schedule"])
-    if cfg.get("package"):
-        return deploy_args(cfg["package"], cfg.get("targets") or [])
-    raise ValueError("`.pdq` needs a 'package' (with optional 'targets') or a 'schedule'")
+
+    package = cfg.get("package")
+    if not package:
+        raise ValueError("`.pdq` needs a 'package' (with 'targets' or 'target_list') or a 'schedule'")
+
+    if cfg.get("targets"):
+        targets = list(cfg["targets"])
+    elif cfg.get("target_list"):
+        name = cfg["target_list"]
+        targets = target_list_members(name)
+        if not targets:
+            raise ValueError(f"target list {name!r} not found or empty")
+    else:
+        raise ValueError("`.pdq` needs 'targets' or 'target_list'")
+
+    return deploy_args(package, targets)
 
 
 def run(args: list[str], timeout: float = PDQ_TIMEOUT) -> Result:
@@ -69,23 +142,21 @@ def run_config(path: Path, timeout: float = PDQ_TIMEOUT) -> Result:
         return -1, "", f"bad .pdq config: {e}"
     try:
         args = args_from_config(cfg)
-    except ValueError as e:
+    except (ValueError, sqlite3.Error) as e:
         return -1, "", str(e)
     return run(args, timeout)
 
 
-def list_packages(timeout: float = PDQ_TIMEOUT) -> list[str]:
-    _, out, _ = run(["GetPackageNames"], timeout)
-    return [line.strip() for line in out.splitlines() if line.strip()]
-
-
-if __name__ == "__main__":  # discovery helper
+if __name__ == "__main__":  # discovery helper (reads the DB)
     import sys
 
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
     if cmd == "packages":
-        print(run(["GetPackageNames"])[1], end="")
-    elif cmd == "schedules":
-        print(run(["GetSchedules"])[1], end="")
+        print("\n".join(list_packages()))
+    elif cmd in ("lists", "target-lists", "targetlists"):
+        for name in list_target_lists():
+            print(f"{name}  ({len(target_list_members(name))} targets)")
+    elif cmd == "members" and len(sys.argv) > 2:
+        print("\n".join(target_list_members(sys.argv[2])))
     else:
-        print("usage: python -m core.pdq [packages|schedules]")
+        print('usage: python -m core.pdq [packages | lists | members "<list name>"]')

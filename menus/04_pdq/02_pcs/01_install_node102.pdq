@@ -1,0 +1,5 @@
+{
+  "note": "Deploy a package to specific PCs. Packages: python -m core.pdq packages",
+  "package": "Install",
+  "targets": ["192.168.200.102"]
+}
