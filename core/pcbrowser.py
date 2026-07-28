@@ -28,6 +28,7 @@ from .config import (
     PING_TIMEOUT_MS,
     PING_WORKERS,
 )
+from .constants import After, Kind
 from .model import ActionNode, MenuNode
 
 log = logging.getLogger("pcbrowser")
@@ -163,7 +164,7 @@ def _pc_children(node) -> list:
             path=None,
             label=f"Лист:\n{current}",
             provider=_list_picker,
-            color_fn=lambda: COLORS["nav"],
+            color_fn=lambda: COLORS[Kind.NAV],
         )
     ]
     for host in members():
@@ -194,8 +195,8 @@ def _list_picker(node) -> list:
             ActionNode(
                 name=name,
                 label=label,
-                kind="menu",
-                after="back",
+                kind=Kind.MENU,
+                after=After.BACK,
                 on_press=lambda n=name: _select_list(n),
             )
         )
@@ -208,7 +209,7 @@ def _pc_packages(node) -> list:
         ActionNode(
             name=pkg,
             label=pkg,
-            kind="command",
+            kind=Kind.COMMAND,
             on_press=lambda p=pkg, h=host: _deploy(p, h),
         )
         for pkg in packages()

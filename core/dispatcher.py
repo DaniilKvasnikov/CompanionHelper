@@ -5,6 +5,7 @@ import logging
 
 from . import loader, render, state
 from .config import COLORS, FEEDBACK_TIMEOUT, SCRIPT_TIMEOUT
+from .constants import After, Kind
 from .layout import build_layout
 from .model import ActionNode, MenuNode
 from .runner import run_script
@@ -51,14 +52,14 @@ def refresh_feedback(page: str) -> None:
         menu = _menu_for(st)
         cells, _, _ = build_layout(menu, len(st.path), st.page_index)
         feedback_slots = [
-            (cell, slot) for cell, slot in cells.items() if slot.kind == "feedback"
+            (cell, slot) for cell, slot in cells.items() if slot.kind == Kind.FEEDBACK
         ]
     for (row, col), slot in feedback_slots:
         res = run_script(slot.node.path, FEEDBACK_TIMEOUT)
         line = res.first_line() if res.ok else "ERR"
         text = f"{slot.label}\n{line}"
         st.feedback_values[slot.node.key] = text
-        bg, fg = COLORS["feedback"]
+        bg, fg = COLORS[Kind.FEEDBACK]
         render.update_cell(page, st, row, col, text, bg, fg)
 
 
@@ -75,14 +76,14 @@ def handle_press(page: str, row: int, col: int) -> None:
         kind = slot.kind
         nav = None
 
-        if kind == "back" and st.path:
+        if kind == Kind.BACK and st.path:
             st.path.pop()
             st.page_index = 0
             nav = "render"
-        elif kind == "prev":
+        elif kind == Kind.PREV:
             st.page_index = max(0, st.page_index - 1)
             nav = "render"
-        elif kind == "next":
+        elif kind == Kind.NEXT:
             st.page_index = min(pages - 1, st.page_index + 1)
             nav = "render"
         elif isinstance(node, MenuNode):  # drill into a submenu (static or dynamic)
@@ -110,31 +111,31 @@ def _run_action(page, st, row, col, slot, node: ActionNode) -> None:
         text = node.on_press() or ""
     except Exception as e:  # noqa: BLE001
         text = f"ERR\n{e}"
-    if node.after == "back":
+    if node.after == After.BACK:
         with state.lock:
             if st.path:
                 st.path.pop()
                 st.page_index = 0
         render_page(page)
         refresh_feedback(page)
-    elif node.after == "rerender":
+    elif node.after == After.RERENDER:
         render_page(page)
         refresh_feedback(page)
-    else:  # 'text' -> show the result on this button
+    else:  # After.TEXT -> show the result on this button
         label = f"{node.label}\n{text}" if text else node.label
-        bg, fg = (node.color_fn() if node.color_fn else None) or COLORS.get(node.kind, COLORS["command"])
+        bg, fg = (node.color_fn() if node.color_fn else None) or COLORS.get(node.kind, COLORS[Kind.COMMAND])
         render.update_cell(page, st, row, col, label, bg, fg)
 
 
 def _run_command(page, st, row, col, slot, node) -> None:
-    timeout = FEEDBACK_TIMEOUT if slot.kind == "feedback" else SCRIPT_TIMEOUT
+    timeout = FEEDBACK_TIMEOUT if slot.kind == Kind.FEEDBACK else SCRIPT_TIMEOUT
     res = run_script(node.path, timeout)
     line = res.first_line() or ("OK" if res.ok else "ERR")
     text = f"{slot.label}\n{line}"
-    if slot.kind == "feedback":
+    if slot.kind == Kind.FEEDBACK:
         st.feedback_values[node.key] = text
-        bg, fg = COLORS["feedback"]
+        bg, fg = COLORS[Kind.FEEDBACK]
     else:
-        bg, fg = COLORS["command"] if res.ok else COLORS["back"]
+        bg, fg = COLORS[Kind.COMMAND] if res.ok else COLORS[Kind.BACK]
     render.update_cell(page, st, row, col, text, bg, fg)
     log.info("ran %s -> code=%s", node.path.name, res.code)

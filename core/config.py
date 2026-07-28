@@ -1,6 +1,8 @@
 """Central configuration. Tweak values here, not scattered through the code."""
 from pathlib import Path
 
+from .constants import Kind
+
 # --- Companion connection -------------------------------------------------
 # All button updates (text + colors) are pushed to Companion's OSC listener
 # over UDP. Companion must have OSC control enabled on this host/port.
@@ -49,10 +51,10 @@ PC_UNKNOWN = ("#2b2b2b", "#cccccc")  # gray   - not pinged yet
 
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
-    "menu":     ("#12233b", "#ffffff"),  # submenu / folder
-    "command":  ("#2b2b2b", "#ffffff"),  # script button
-    "feedback": ("#0f3d2e", "#8affc1"),  # script button with live output
-    "back":     ("#4a1414", "#ffb4b4"),  # navigate up
-    "nav":      ("#22303f", "#cfe3ff"),  # paging (prev / next)
-    "empty":    ("#000000", "#000000"),  # cleared cell
+    Kind.MENU:     ("#12233b", "#ffffff"),  # submenu / folder
+    Kind.COMMAND:  ("#2b2b2b", "#ffffff"),  # script button
+    Kind.FEEDBACK: ("#0f3d2e", "#8affc1"),  # script button with live output
+    Kind.BACK:     ("#4a1414", "#ffb4b4"),  # navigate up
+    Kind.NAV:      ("#22303f", "#cfe3ff"),  # paging (prev / next)
+    Kind.EMPTY:    ("#000000", "#000000"),  # cleared cell
 }

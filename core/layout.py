@@ -10,6 +10,7 @@ import math
 from dataclasses import dataclass
 
 from .config import GRID_COLS, NAV_ROW
+from .constants import Kind
 from .model import ActionNode, CommandNode, MenuNode, children_of
 
 # Cells available for menu items (everything above the nav row).
@@ -31,12 +32,12 @@ class Slot:
 
 def _kind(child) -> str:
     if isinstance(child, MenuNode):
-        return "menu"
+        return Kind.MENU
     if isinstance(child, ActionNode):
         return child.kind
     if isinstance(child, CommandNode) and child.feedback:
-        return "feedback"
-    return "command"
+        return Kind.FEEDBACK
+    return Kind.COMMAND
 
 
 def build_layout(menu: MenuNode, depth: int, page_index: int):
@@ -59,10 +60,10 @@ def build_layout(menu: MenuNode, depth: int, page_index: int):
         )
 
     if depth > 0:
-        cells[BACK_CELL] = Slot(kind="back", label="Back")
+        cells[BACK_CELL] = Slot(kind=Kind.BACK, label="Back")
     if page_index > 0:
-        cells[PREV_CELL] = Slot(kind="prev", label="< Prev")
+        cells[PREV_CELL] = Slot(kind=Kind.PREV, label="< Prev")
     if page_index < pages - 1:
-        cells[NEXT_CELL] = Slot(kind="next", label="Next >")
+        cells[NEXT_CELL] = Slot(kind=Kind.NEXT, label="Next >")
 
     return cells, pages, page_index

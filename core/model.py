@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
+from .constants import After, Kind
+
 # Extensions we treat as buttons. `.pdq` is a JSON config for a PDQ Deploy
 # action (handled in runner via core.pdq); the rest are executed directly.
 # See runner.RUNNERS for the actual commands.
@@ -64,8 +66,8 @@ class ActionNode:
     name: str
     label: str
     on_press: Callable[[], str]
-    kind: str = "command"            # base color key in config.COLORS
-    after: str = "text"              # 'text' | 'rerender' | 'back'
+    kind: str = Kind.COMMAND         # base color key in config.COLORS
+    after: str = After.TEXT          # After.TEXT | RERENDER | BACK
     color_fn: Optional[Callable] = None
     context: dict = field(default_factory=dict)
 

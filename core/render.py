@@ -8,22 +8,23 @@ from __future__ import annotations
 
 from . import companion
 from .config import COLORS, GRID_COLS, GRID_ROWS
+from .constants import Kind
 from .layout import Slot
 from .state import PageState
 
-# Slot.kind -> key into COLORS
-_COLOR_KIND = {"back": "back", "prev": "nav", "next": "nav"}
+# Slot.kind -> key into COLORS (paging buttons share the NAV color)
+_COLOR_KIND = {Kind.BACK: Kind.BACK, Kind.PREV: Kind.NAV, Kind.NEXT: Kind.NAV}
 _EMPTY = ("", "#000000", "#000000")
 
 
 def _colors(kind: str):
-    return COLORS.get(_COLOR_KIND.get(kind, kind), COLORS["command"])
+    return COLORS.get(_COLOR_KIND.get(kind, kind), COLORS[Kind.COMMAND])
 
 
 def _cell_style(slot: Slot | None, st: PageState):
     if slot is None:
         return _EMPTY
-    if slot.kind == "feedback":
+    if slot.kind == Kind.FEEDBACK:
         text = st.feedback_values.get(slot.node.key, slot.label)
     else:
         text = slot.label
