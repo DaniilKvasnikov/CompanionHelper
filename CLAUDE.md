@@ -9,18 +9,18 @@ A modular menu system for a Stream Deck driven through [Bitfocus Companion](http
 ## Commands
 
 ```bash
-pip install -r requirements.txt   # fastapi, uvicorn, requests
+pip install -r requirements.txt   # fastapi, uvicorn
 python main.py                    # serves on 0.0.0.0:7878
 ```
 
-- `POST /press?page=&row=&col=` — called by every deck button on press.
+- `POST /press?page=&row=&col=` — called by every deck button on press (Companion → here, HTTP).
 - `POST /reload` — rebuild the menu tree from disk and redraw active pages (use after editing `menus/`).
 
-Companion must be running and reachable at `COMPANION_URL` (default `http://localhost:8000`, set in [core/config.py](core/config.py)).
+Two transports, opposite directions: **presses come in over HTTP** (FastAPI), **button visuals go out over OSC/UDP** to Companion's OSC listener (`OSC_HOST`/`OSC_PORT` 12321 in [core/config.py](core/config.py)). Companion must have OSC control enabled.
 
 ## Key architectural constraint
 
-Companion's HTTP API can only change a button's **visuals** (`/style`: text, colors), never its **action**. So dynamic submenus are impossible to build on Companion's side. Instead:
+Companion's remote API can only change a button's **visuals** (text, colors), never its **action**. So dynamic submenus are impossible to build on Companion's side. Instead:
 
 **Dumb deck, smart server.** Every button on the controlled page is configured in Companion to send the *same* generic `POST /press` with its own `page/row/col`. This server owns all state and logic, resolves what that coordinate means in the current menu, acts, and then re-pushes styles to **all 32 cells** to reflect the new view.
 
@@ -35,14 +35,12 @@ Companion's HTTP API can only change a button's **visuals** (`/style`: text, col
 
 ## Rendering performance
 
-A naive redraw is 32 serial HTTP round-trips to Companion and is visibly slow. Four things keep it fast, in [core/render.py](core/render.py) / [core/companion.py](core/companion.py) / [core/osc.py](core/osc.py):
+A naive redraw would be dozens of HTTP round-trips and is visibly slow. Two things keep it fast, in [core/render.py](core/render.py) / [core/companion.py](core/companion.py) / [core/osc.py](core/osc.py):
 
-- **OSC for text** — the hot path (feedback updates) changes only text, sent over OSC/UDP (`/location/<p>/<r>/<c>/style/text`, port `OSC_PORT` 12321) — fire-and-forget, no round-trip. `render._emit` picks OSC when only text changed, HTTP when a color changed or on first draw.
-- **Diffing** — `PageState.rendered` caches each cell's last `(text, bg, fg)`; only cells whose style changed are pushed. Single-button updates go through `render.update_cell` so the cache stays consistent.
-- **Persistent `Session`** — one keep-alive connection for the HTTP (color) pushes.
-- **Parallel pushes** — `companion.apply` fans HTTP updates out over a `ThreadPoolExecutor` (`RENDER_WORKERS`).
+- **OSC/UDP for everything** — text (`/location/<p>/<r>/<c>/style/text <text>`) and colors (`/style/bgcolor` and `/style/color` as `r g b` 0-255) are sent fire-and-forget, no round-trip. A text-only change is one message; a color change is three (`companion.set_style`). Colors are stored as `#rrggbb` and converted to r/g/b in `companion._rgb`.
+- **Diffing** — `PageState.rendered` caches each cell's last `(text, bg, fg)`; `render._emit` pushes only cells whose style changed, and prefers `set_text` (1 msg) over `set_style` (3 msgs) when only text differs. A feedback poll touches ~1–2 cells, not 32. Single-button updates go through `render.update_cell` so the cache stays consistent.
 
-OSC has no built-in encoder dependency — [core/osc.py](core/osc.py) writes OSC 1.0 messages by hand. Colors still go over HTTP because Companion's OSC color format isn't relied upon here; only text is OSC. Knobs live in [core/config.py](core/config.py) (`OSC_HOST`/`OSC_PORT`, `CONNECT_TIMEOUT`, `READ_TIMEOUT`, `RENDER_WORKERS`). If you bypass `render`/`companion` to talk to Companion directly, update `PageState.rendered` too or the diff will skip real changes.
+[core/osc.py](core/osc.py) writes OSC 1.0 messages by hand (no dependency). Knobs live in [core/config.py](core/config.py) (`OSC_HOST`/`OSC_PORT`). If you bypass `render`/`companion` to talk to Companion directly, update `PageState.rendered` too or the diff will skip real changes.
 
 ## Menu tree conventions (`menus/`)
 
@@ -61,7 +59,7 @@ Fixed 8×4 (Stream Deck XL). Content fills rows 0–2 in reading order (24 slots
 
 ## State & concurrency
 
-Per-Companion-page state lives in [core/state.py](core/state.py) (`path`, `page_index`, cached `feedback_values`), guarded by a single `RLock` shared between the FastAPI request thread and the background feedback poller ([core/feedback.py](core/feedback.py), a daemon thread started in `main.lifespan`). Companion calls fail soft — a network error is logged and rendering continues.
+Per-Companion-page state lives in [core/state.py](core/state.py) (`path`, `page_index`, cached `feedback_values`), guarded by a single `RLock` shared between the FastAPI request thread and the background feedback poller ([core/feedback.py](core/feedback.py), a daemon thread started in `main.lifespan`). OSC sends fail soft — a socket error is logged and rendering continues.
 
 ## Files
 

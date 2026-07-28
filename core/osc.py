@@ -56,3 +56,11 @@ def send(address: str, *args) -> None:
 
 def set_text(page, row, col, text: str) -> None:
     send(f"/location/{page}/{row}/{col}/style/text", text)
+
+
+def set_bgcolor(page, row, col, r: int, g: int, b: int) -> None:
+    send(f"/location/{page}/{row}/{col}/style/bgcolor", r, g, b)
+
+
+def set_color(page, row, col, r: int, g: int, b: int) -> None:
+    send(f"/location/{page}/{row}/{col}/style/color", r, g, b)

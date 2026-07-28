@@ -1,48 +1,29 @@
-"""Thin client over Companion's HTTP API. Only touches button visuals.
+"""Facade for updating button visuals in Companion, all over OSC/UDP.
 
-Uses one persistent Session (keep-alive, no reconnect per button) and pushes
-styles in parallel so redrawing a full page isn't 32 serial round-trips.
+Everything is fire-and-forget (no round-trip), so redrawing is fast and there
+is nothing to wait on. Colors are sent as r/g/b 0-255. render.py decides which
+of these to call based on what actually changed.
 """
 from __future__ import annotations
 
-import logging
-from concurrent.futures import ThreadPoolExecutor
-
-import requests
-
 from . import osc
-from .config import COMPANION_URL, CONNECT_TIMEOUT, READ_TIMEOUT, RENDER_WORKERS
 
-log = logging.getLogger("companion")
 
-# Fast path: change only a button's text over OSC/UDP (no round-trip).
-set_text = osc.set_text
+def _rgb(color: str) -> tuple[int, int, int]:
+    """'#12233b' -> (18, 35, 59)."""
+    c = color.lstrip("#")
+    return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
 
-_session = requests.Session()
-_pool = ThreadPoolExecutor(max_workers=RENDER_WORKERS, thread_name_prefix="companion")
-_TIMEOUT = (CONNECT_TIMEOUT, READ_TIMEOUT)
+
+def set_text(page, row, col, text: str) -> None:
+    osc.set_text(page, row, col, text)
 
 
 def set_style(page, row, col, text="", bgcolor="#000000", color="#ffffff") -> None:
-    """Set one button's text/colors. Fails soft: logs and continues on error."""
-    url = f"{COMPANION_URL}/{page}/{row}/{col}/style"
-    try:
-        _session.post(
-            url,
-            params={"text": text, "bgcolor": bgcolor, "color": color},
-            json={},
-            timeout=_TIMEOUT,
-        )
-    except requests.RequestException as e:
-        log.warning("style %s/%s/%s failed: %s", page, row, col, e)
+    osc.set_text(page, row, col, text)
+    osc.set_bgcolor(page, row, col, *_rgb(bgcolor))
+    osc.set_color(page, row, col, *_rgb(color))
 
 
 def clear(page, row, col) -> None:
     set_style(page, row, col, text="", bgcolor="#000000", color="#000000")
-
-
-def apply(updates) -> None:
-    """Push many (page, row, col, text, bgcolor, color) styles in parallel."""
-    futures = [_pool.submit(set_style, *u) for u in updates]
-    for f in futures:  # wait so the deck is fully drawn before we return
-        f.result()

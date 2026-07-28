@@ -2,15 +2,8 @@
 from pathlib import Path
 
 # --- Companion connection -------------------------------------------------
-# Base of Companion's HTTP API. Companion must be running and reachable here.
-COMPANION_URL = "http://localhost:8000/api/location"
-
-CONNECT_TIMEOUT = 1.0      # seconds to open a connection to Companion
-READ_TIMEOUT = 1.5         # seconds to wait for a style response
-RENDER_WORKERS = 8         # parallel style pushes when redrawing a page
-
-# Companion's OSC listener. Button text is pushed here over UDP (fast path);
-# colors still go over the HTTP API above.
+# All button updates (text + colors) are pushed to Companion's OSC listener
+# over UDP. Companion must have OSC control enabled on this host/port.
 OSC_HOST = "127.0.0.1"
 OSC_PORT = 12321
 
@@ -35,7 +28,7 @@ SCRIPT_TIMEOUT = 15.0      # seconds, for command buttons
 FEEDBACK_TIMEOUT = 5.0     # seconds, for feedback (.fb) scripts
 FEEDBACK_INTERVAL = 5.0    # seconds between feedback polls of the active menu
 
-# --- Colors (bg, fg) as CSS hex; requests url-encodes '#' automatically ---
+# --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
     "menu":     ("#12233b", "#ffffff"),  # submenu / folder
     "command":  ("#2b2b2b", "#ffffff"),  # script button
