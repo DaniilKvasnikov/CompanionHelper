@@ -1,0 +1,39 @@
+Для управляющей машины:
+
+# Разрешить всю подсеть 10.0.0.*
+Set-Item WSMan:\localhost\Client\TrustedHosts -Value "10.0.0.*" -Force
+
+# Проверить результат
+Get-Item WSMan:\localhost\Client\TrustedHosts
+
+
+Для удаленной машины:
+
+1. Базовая активация WinRM
+Разрешает удаленные подключения и создает правила в брандмауэре:
+Enable-PSRemoting -Force
+
+2. Смена профиля сети на «Частная» (Private)
+WinRM часто блокируется в сетях «Public». Проверьте и смените статус:
+# Посмотреть текущий статус
+Get-NetConnectionProfile
+
+# Сменить на Private (замените InterfaceIndex на ваш из команды выше)
+Set-NetConnectionProfile -InterfaceIndex <Индекс> -NetworkCategory Private
+
+3. Снятие ограничений политик (Policy)
+Если при настройке возникают ошибки «Controlled by policies», примените эти ключи реестра:
+Разрешить удаленные оболочки (Shells):
+$path = "HKLM:\Software\Policies\Microsoft\Windows\WinRM\Service\WinRS"
+if (!(Test-Path $path)) { New-Item -Path $path -Force }
+Set-ItemProperty -Path $path -Name "AllowRemoteShellAccess" -Value 1 -Force
+
+Разрешить удаленный вход для локальных админов:
+Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name LocalAccountTokenFilterPolicy -Value 1 -Force
+
+4. Финальный перезапуск службы
+Restart-Service WinRM
+
+
+Переименовать PC
+Rename-Computer -Restart -NewName ""

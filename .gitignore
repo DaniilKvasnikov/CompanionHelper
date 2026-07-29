@@ -5,3 +5,9 @@ __pycache__/
 venv/
 env/
 .env
+
+# local editor / agent settings
+**/.claude/settings.local.json
+
+# bundled NVIDIA WMI SDK (redistribution restricted) — kept local, not published
+NvidiaResAndColor/2.29-NVWMI-developer/

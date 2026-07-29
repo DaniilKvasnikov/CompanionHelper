@@ -1,0 +1,17 @@
+Хорошо. Просто чтобы вы знали, это решение работало некоторое время, но не было окончательным. Ещё один работающий способ — отключение функции «применять при запуске» в MSI Afterburner. Когда понижение напряжения на моей видеокарте было включено и применялось при запуске, игры начали вылетать.
+
+Afterburner с конфигурацией NO STARTUP и заводскими настройками, очистка журнала событий, насколько это было возможно:
+
+понизил поколение BIOS с 3-го на 2-е,
+
+Disable all Nvidia Audio from Device Manager, under Sound, Video and Game controllers
+
+for /r "C:\Windows\System32" %i in (nvlddmkm.sys) do @if exist "%i" takeown /f "%i" /a
+
+for /r "C:\Windows\System32" %i in (nvlddmkm.sys) do @if exist "%i" icacls "%i" /grant Administrators:F
+
+for /r "C:\Windows\System32" %i in (nvlddmkm.sys) do @if exist "%i" copy "%i" C:\Windows\System32\Drivers\
+
+PCIE на GEN4 - он был на GEN5
+
+В ASUS AI TWEAK я изменил свой профиль XMP обратно на 2 (отредактировано: с AUTO на XMP 2)
