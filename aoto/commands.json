@@ -1,9 +1,12 @@
 [
   { "note": "Each command is a button. Pressing it sends the request to EVERY controller in the selected group. Objects without a 'label' (like this one) are ignored, so they work as comments. Add/remove commands freely." },
 
-  { "label": "Вход",    "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 0 } },
-  { "label": "Блэкаут", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 1 } },
-  { "label": "Фриз",    "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 2 } },
+  { "note": "'hidden' command: polled in the background for state only, never shown as a button. Here it reads the current screen type; the Вход/Блэкаут/Фриз buttons turn green when the group's current type equals their 'active_value'. VERIFY the read path/field for your firmware (placeholder: getScreenStatus -> obj.type)." },
+  { "label": "screen-status", "hidden": true, "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "body": {}, "response_field": "obj.type" },
+
+  { "label": "Вход",    "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 0 }, "active_status": "screen-status", "active_value": 0 },
+  { "label": "Блэкаут", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 1 }, "active_status": "screen-status", "active_value": 1 },
+  { "label": "Фриз",    "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 2 }, "active_status": "screen-status", "active_value": 2 },
 
   { "note": "A command with 'response_field' is a STATUS button: the (dotted) field is read from each controller's JSON reply, aggregated across the group, and shown on the button (all equal -> value; numbers differ -> min-max range; else a distinct list). An optional 'labels' map turns raw values into names. When the group disagrees, pressing the button opens a per-controller breakdown (last IP octet -> value). Polled in the background and refreshed on press." },
   { "label": "Яркость", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "body": {}, "response_field": "obj.brightness" },

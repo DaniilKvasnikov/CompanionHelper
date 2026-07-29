@@ -8,6 +8,7 @@ import json
 import pytest
 
 from core import aoto
+from core.config import COLORS
 from core.constants import After, Kind
 from core.model import ActionNode, MenuNode
 
@@ -193,3 +194,48 @@ def test_poll_statuses_fills_cache_for_status_commands_only(catalog, monkeypatch
     assert aoto._status_text(st_cmd, aoto._cached_results("Зал1", "Статус")) == "1"
     assert aoto._status_text(st_cmd, aoto._cached_results("Зал2", "Статус")) == "1"
     assert aoto._cached_results("Зал1", "Блэкаут") == []
+
+
+# --- active-state coloring (highlight the button matching the current state) --
+def test_group_agreed_value(catalog):
+    aoto._status[("Зал1", "screen-status")] = [("a", True, 1), ("b", True, 1)]
+    assert aoto._group_agreed_value("Зал1", "screen-status") == 1
+    aoto._status[("Зал1", "screen-status")] = [("a", True, 1), ("b", True, 2)]
+    assert aoto._group_agreed_value("Зал1", "screen-status") is None   # controllers differ
+    assert aoto._group_agreed_value("Зал1", "missing") is None         # nothing cached
+
+
+def test_active_color_highlights_only_the_matching_value(catalog):
+    aoto._status[("Зал1", "screen-status")] = [("a", True, 2), ("b", True, 2)]
+    assert aoto._active_color("Зал1", "screen-status", 2) == COLORS[Kind.FEEDBACK]
+    assert aoto._active_color("Зал1", "screen-status", 0) is None
+
+
+def test_group_commands_skips_hidden_and_colors_active_type(catalog, monkeypatch):
+    tracker = {"label": "screen-status", "hidden": True, "path": "/get", "body": {},
+               "response_field": "obj.type"}
+    vhod = {"label": "Вход", "path": "/set", "body": {"type": 0},
+            "active_status": "screen-status", "active_value": 0}
+    freez = {"label": "Фриз", "path": "/set", "body": {"type": 2},
+             "active_status": "screen-status", "active_value": 2}
+    monkeypatch.setattr(aoto, "_commands", [tracker, vhod, freez])
+    aoto._status[("Зал1", "screen-status")] = [("a", True, 2), ("b", True, 2)]  # freeze active
+
+    node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
+    btns = aoto._group_commands(node)
+    assert [b.name for b in btns] == ["Вход", "Фриз"]      # hidden tracker not rendered
+    colors = {b.name: b.color_fn() for b in btns}
+    assert colors["Фриз"] == COLORS[Kind.FEEDBACK]         # current type -> green
+    assert colors["Вход"] is None                          # not current -> default
+
+
+def test_apply_tracked_applies_then_repolls_state(catalog, monkeypatch):
+    tracker = {"label": "screen-status", "hidden": True, "path": "/get", "body": {},
+               "response_field": "obj.type"}
+    vhod = {"label": "Вход", "path": "/set", "body": {"type": 0},
+            "active_status": "screen-status", "active_value": 0}
+    monkeypatch.setattr(aoto, "_commands", [tracker, vhod])
+    monkeypatch.setattr(aoto, "_request",
+                        lambda addr, cmd: (True, 0) if cmd is tracker else (True, None))
+    aoto._apply_tracked("Зал1", vhod)
+    assert aoto._group_agreed_value("Зал1", "screen-status") == 0   # re-polled into cache

@@ -259,16 +259,49 @@ def _green():
     return COLORS[Kind.FEEDBACK]
 
 
+def _command_by_label(label: str) -> dict | None:
+    return next((c for c in commands() if c.get("label") == label), None)
+
+
+def _group_agreed_value(group: str, status_label: str):
+    """The single value all controllers report for a status, or None if they differ."""
+    vals = {v for _a, ok, v in _cached_results(group, status_label) if ok and v is not None}
+    return next(iter(vals)) if len(vals) == 1 else None
+
+
+def _active_color(group: str, status_label: str, value):
+    """Green when the group's current state equals this button's value, else default."""
+    return COLORS[Kind.FEEDBACK] if _group_agreed_value(group, status_label) == value else None
+
+
+def _apply_tracked(group: str, cmd: dict) -> str:
+    run_group(group, cmd)                                   # apply the change
+    tracker = _command_by_label(cmd.get("active_status"))
+    if tracker:
+        _press_status(group, tracker)                       # re-poll so the highlight is truthful
+    return ""
+
+
 def _group_commands(node) -> list:
     group = node.context["group"]
     out: list = []
     for cmd in commands():
+        if cmd.get("hidden"):                  # polled for state only, never shown
+            continue
         label = cmd["label"]
         if not cmd.get("response_field"):      # action button: fire and show result
-            out.append(ActionNode(
-                name=label, label=label, kind=Kind.COMMAND, after=After.TEXT,
-                on_press=lambda g=group, c=cmd: run_group(g, c),
-            ))
+            active = cmd.get("active_status")
+            if active is not None:             # highlight when the group is in this state
+                out.append(ActionNode(
+                    name=label, label=label, kind=Kind.COMMAND, after=After.RERENDER,
+                    on_press=lambda g=group, c=cmd: _apply_tracked(g, c),
+                    color_fn=lambda g=group, s=active, v=cmd.get("active_value"): _active_color(g, s, v),
+                ))
+            else:
+                out.append(ActionNode(
+                    name=label, label=label, kind=Kind.COMMAND, after=After.TEXT,
+                    on_press=lambda g=group, c=cmd: run_group(g, c),
+                ))
             continue
         # status button: value from cache; if the group disagrees, drill into a
         # per-controller breakdown, else press re-polls.
