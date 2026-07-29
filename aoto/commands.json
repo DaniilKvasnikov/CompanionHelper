@@ -5,6 +5,7 @@
   { "label": "Блэкаут", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 1 } },
   { "label": "Фриз",    "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 2 } },
 
-  { "note": "A command with 'response_field' is a STATUS button: the (dotted) field is read from each controller's JSON reply, aggregated across the group, and shown on the button (all equal -> value; numbers differ -> min-max range; else a distinct list). Polled in the background and refreshed on press." },
-  { "label": "Яркость", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "body": {}, "response_field": "obj.brightness" }
+  { "note": "A command with 'response_field' is a STATUS button: the (dotted) field is read from each controller's JSON reply, aggregated across the group, and shown on the button (all equal -> value; numbers differ -> min-max range; else a distinct list). An optional 'labels' map turns raw values into names. When the group disagrees, pressing the button opens a per-controller breakdown (last IP octet -> value). Polled in the background and refreshed on press." },
+  { "label": "Яркость", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "body": {}, "response_field": "obj.brightness" },
+  { "label": "HDR", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "body": {}, "response_field": "obj.hdrSetting", "labels": { "0": "from input", "1": "SDR", "2": "HLG", "3": "PQ" } }
 ]

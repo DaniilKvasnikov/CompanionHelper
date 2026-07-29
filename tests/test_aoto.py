@@ -61,18 +61,37 @@ def test_extract_dotted_path():
 
 
 # --- aggregation ----------------------------------------------------------
-def test_summarize_action_ok_and_partial():
-    action = {"label": "X", "path": "/set"}
-    assert aoto._summarize(action, [(True, None), (True, None)]) == "OK 2/2"
-    assert aoto._summarize(action, [(True, None), (False, None)]) == "ERR 1/2"
+def test_action_text_ok_and_partial():
+    assert aoto._action_text([("a", True, None), ("b", True, None)]) == "OK 2/2"
+    assert aoto._action_text([("a", True, None), ("b", False, None)]) == "ERR 1/2"
 
 
-def test_summarize_status_agrees_differs_and_errors():
-    status = {"label": "S", "response_field": "obj.brightness"}
-    assert aoto._summarize(status, [(True, 225), (True, 225)]) == "225"      # all equal
-    assert aoto._summarize(status, [(True, 200), (True, 225)]) == "200-225"  # numbers differ -> range
-    assert aoto._summarize(status, [(True, 200), (False, None)]) == "200 (1/2)"  # partial
-    assert aoto._summarize(status, [(False, None)]) == "ERR"                # all failed
+def test_status_text_agrees_differs_partial_errors():
+    st = {"label": "S", "response_field": "obj.brightness"}
+    assert aoto._status_text(st, [("a", True, 225), ("b", True, 225)]) == "225"      # equal
+    assert aoto._status_text(st, [("a", True, 200), ("b", True, 225)]) == "200-225"  # range
+    assert aoto._status_text(st, [("a", True, 200), ("b", False, None)]) == "200 (1/2)"  # partial
+    assert aoto._status_text(st, [("a", False, None)]) == "ERR"                      # all failed
+
+
+def test_map_applies_labels():
+    hdr = {"labels": {"0": "from input", "2": "HLG"}}
+    assert aoto._map(hdr, 2) == "HLG"
+    assert aoto._map(hdr, 9) == 9            # unmapped -> raw value
+    assert aoto._map({}, 2) == 2             # no labels
+
+
+def test_status_text_uses_labels_and_lists_when_differ():
+    hdr = {"response_field": "obj.hdrSetting", "labels": {"1": "SDR", "3": "PQ"}}
+    assert aoto._status_text(hdr, [("a", True, 1), ("b", True, 1)]) == "SDR"
+    assert aoto._status_text(hdr, [("a", True, 1), ("b", True, 3)]) == "SDR/PQ"
+
+
+def test_values_differ():
+    hdr = {"labels": {"1": "SDR", "3": "PQ"}}
+    assert aoto._values_differ(hdr, [("a", True, 1), ("b", True, 1)]) is False
+    assert aoto._values_differ(hdr, [("a", True, 1), ("b", True, 3)]) is True
+    assert aoto._values_differ(hdr, [("a", True, 1), ("b", False, None)]) is False
 
 
 def test_format_values_range_and_categorical():
@@ -123,11 +142,10 @@ def test_aoto_children_lists_groups(catalog):
 
 def test_group_commands_builds_action_and_status_buttons(catalog):
     node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
-    btns = aoto._group_commands(node)
-    action, status = btns
-    assert action.after == After.TEXT and action.label == "Блэкаут"
-    assert status.after == After.RERENDER and status.label == "Статус"  # empty cache
-    assert all(b.kind == Kind.COMMAND for b in btns)
+    action, status = aoto._group_commands(node)
+    assert isinstance(action, ActionNode) and action.after == After.TEXT and action.label == "Блэкаут"
+    # empty cache -> not differing -> a plain re-poll ActionNode
+    assert isinstance(status, ActionNode) and status.after == After.RERENDER and status.label == "Статус"
 
 
 def test_status_button_shows_cached_value_and_press_refreshes(catalog, monkeypatch):
@@ -136,9 +154,28 @@ def test_status_button_shows_cached_value_and_press_refreshes(catalog, monkeypat
     node = MenuNode("Зал2", None, "Зал2", context={"group": "Зал2"})
     status = aoto._group_commands(node)[1]
     status.on_press()                       # polls, writes cache
-    assert aoto._cached("Зал2", "Статус") == "2"
+    results = aoto._cached_results("Зал2", "Статус")
+    assert aoto._status_text(catalog["commands"][1], results) == "2"
     refreshed = aoto._group_commands(node)[1]
     assert refreshed.label == "Статус\n2"   # label now reflects the cache
+
+
+def test_status_differ_becomes_drilldown_with_per_ip_breakdown(catalog, monkeypatch):
+    hdr = {"label": "HDR", "method": "POST", "path": "/get", "body": {},
+           "response_field": "obj.hdrSetting", "labels": {"1": "SDR", "3": "PQ"}}
+    monkeypatch.setattr(aoto, "_commands", [hdr])
+    # Зал1 = 10.0.0.1 + 10.0.0.2 -> make them disagree
+    monkeypatch.setattr(aoto, "_request",
+                        lambda addr, cmd: (True, 1 if addr.endswith(".1:8080") else 3))
+    aoto._poll_statuses()
+
+    node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
+    hdr_btn = aoto._group_commands(node)[0]
+    assert isinstance(hdr_btn, MenuNode)              # disagreement -> drill-in menu
+    assert hdr_btn.label == "HDR\nSDR/PQ"
+
+    detail = aoto._status_detail(hdr_btn)
+    assert sorted(b.label for b in detail) == [".1\nSDR", ".2\nPQ"]  # last octet -> value
 
 
 def test_action_button_press_sends_and_summarizes(catalog, monkeypatch):
@@ -151,7 +188,8 @@ def test_action_button_press_sends_and_summarizes(catalog, monkeypatch):
 def test_poll_statuses_fills_cache_for_status_commands_only(catalog, monkeypatch):
     monkeypatch.setattr(aoto, "_request", lambda addr, cmd: (True, 1))
     aoto._poll_statuses()
+    st_cmd = catalog["commands"][1]
     # status command cached for both groups; the action command is not polled
-    assert aoto._cached("Зал1", "Статус") == "1"
-    assert aoto._cached("Зал2", "Статус") == "1"
-    assert aoto._cached("Зал1", "Блэкаут") == ""
+    assert aoto._status_text(st_cmd, aoto._cached_results("Зал1", "Статус")) == "1"
+    assert aoto._status_text(st_cmd, aoto._cached_results("Зал2", "Статус")) == "1"
+    assert aoto._cached_results("Зал1", "Блэкаут") == []

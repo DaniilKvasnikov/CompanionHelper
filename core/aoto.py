@@ -45,7 +45,8 @@ log = logging.getLogger("aoto")
 _lock = threading.RLock()
 _groups: dict[str, list[str]] = {}          # group label -> controller addresses
 _commands: list[dict] = []                  # command defs from commands.json
-_status: dict[tuple[str, str], str] = {}    # (group, command label) -> shown value
+# (group, command label) -> per-controller results [(addr, ok, value), ...]
+_status: dict[tuple[str, str], list[tuple[str, bool, object]]] = {}
 
 
 # --- catalog (read from disk) ---------------------------------------------
@@ -109,9 +110,9 @@ def commands() -> list[dict]:
         return list(_commands)
 
 
-def _cached(group: str, label: str) -> str:
+def _cached_results(group: str, label: str) -> list[tuple[str, bool, object]]:
     with _lock:
-        return _status.get((group, label), "")
+        return list(_status.get((group, label), []))
 
 
 # --- HTTP -----------------------------------------------------------------
@@ -148,27 +149,50 @@ def _extract(text: str, field: str):
     return obj
 
 
-def run_group(group: str, cmd: dict) -> str:
-    """Fire a command at every controller in the group; return a summary line."""
+def _run(group: str, cmd: dict) -> list[tuple[str, bool, object]]:
+    """Fire a command at every controller in the group; return per-controller results."""
     addrs = addresses(group)
     if not addrs:
-        return "нет адресов"
+        return []
     with ThreadPoolExecutor(max_workers=AOTO_WORKERS) as ex:
-        results = list(ex.map(lambda a: _request(a, cmd), addrs))
-    return _summarize(cmd, results)
+        pairs = list(ex.map(lambda a: _request(a, cmd), addrs))
+    return [(a, ok, v) for a, (ok, v) in zip(addrs, pairs)]
 
 
-def _summarize(cmd: dict, results: list[tuple[bool, object]]) -> str:
+def run_group(group: str, cmd: dict) -> str:
+    """Action command: fire at the whole group, return an OK/ERR summary line."""
+    if not addresses(group):
+        return "нет адресов"
+    return _action_text(_run(group, cmd))
+
+
+def _action_text(results: list[tuple[str, bool, object]]) -> str:
     n = len(results)
-    ok = [v for good, v in results if good]
-    n_ok = len(ok)
-    if cmd.get("response_field"):
-        vals = [v for v in ok if v is not None]
-        if not vals:
-            return "ERR"
-        shown = _format_values(vals)
-        return shown if n_ok == n else f"{shown} ({n_ok}/{n})"
+    n_ok = sum(1 for _a, ok, _v in results if ok)
     return f"OK {n_ok}/{n}" if n_ok == n else f"ERR {n - n_ok}/{n}"
+
+
+# --- status: mapping, display, and per-controller breakdown ---------------
+def _map(cmd: dict, value) -> object:
+    """Map a raw value through the command's 'labels' (e.g. 2 -> 'HLG'), if any."""
+    labels = cmd.get("labels")
+    return labels.get(str(value), value) if labels else value
+
+
+def _status_text(cmd: dict, results: list[tuple[str, bool, object]]) -> str:
+    """Aggregated status for a group: value / range / list, with a (k/n) on partial."""
+    n = len(results)
+    n_ok = sum(1 for _a, ok, _v in results if ok)
+    vals = [_map(cmd, v) for _a, ok, v in results if ok and v is not None]
+    if not vals:
+        return "ERR"
+    shown = _format_values(vals)
+    return shown if n_ok == n else f"{shown} ({n_ok}/{n})"
+
+
+def _values_differ(cmd: dict, results: list[tuple[str, bool, object]]) -> bool:
+    seen = {_num(_map(cmd, v)) for _a, ok, v in results if ok and v is not None}
+    return len(seen) > 1
 
 
 def _format_values(vals: list) -> str:
@@ -192,9 +216,9 @@ def _poll_statuses() -> None:
         for cmd in commands():
             if not cmd.get("response_field"):
                 continue
-            value = run_group(group, cmd)
+            results = _run(group, cmd)
             with _lock:
-                _status[(group, cmd["label"])] = value
+                _status[(group, cmd["label"])] = results
 
 
 def start(on_update) -> None:
@@ -231,29 +255,56 @@ def _aoto_children(node) -> list:
     ]
 
 
+def _green():
+    return COLORS[Kind.FEEDBACK]
+
+
 def _group_commands(node) -> list:
     group = node.context["group"]
     out: list = []
     for cmd in commands():
         label = cmd["label"]
-        if cmd.get("response_field"):          # status button: value from cache
-            val = _cached(group, label)
-            out.append(ActionNode(
-                name=label, label=f"{label}\n{val}" if val else label,
-                kind=Kind.COMMAND, after=After.RERENDER,
-                on_press=lambda g=group, c=cmd: _press_status(g, c),
-                color_fn=lambda: COLORS[Kind.FEEDBACK],
-            ))
-        else:                                  # action button: fire and show result
+        if not cmd.get("response_field"):      # action button: fire and show result
             out.append(ActionNode(
                 name=label, label=label, kind=Kind.COMMAND, after=After.TEXT,
                 on_press=lambda g=group, c=cmd: run_group(g, c),
             ))
+            continue
+        # status button: value from cache; if the group disagrees, drill into a
+        # per-controller breakdown, else press re-polls.
+        results = _cached_results(group, label)
+        text = _status_text(cmd, results) if results else ""
+        display = f"{label}\n{text}" if text else label
+        if _values_differ(cmd, results):
+            out.append(MenuNode(
+                name=label, path=None, label=display, provider=_status_detail,
+                context={"group": group, "cmd": cmd}, color_fn=_green,
+            ))
+        else:
+            out.append(ActionNode(
+                name=label, label=display, kind=Kind.COMMAND, after=After.RERENDER,
+                on_press=lambda g=group, c=cmd: _press_status(g, c), color_fn=_green,
+            ))
+    return out
+
+
+def _status_detail(node) -> list:
+    """One button per controller: its IP's last octet and that controller's value."""
+    group, cmd = node.context["group"], node.context["cmd"]
+    out: list = []
+    for addr, ok, value in _cached_results(group, cmd["label"]):
+        octet = addr.split(":", 1)[0].rsplit(".", 1)[-1]
+        shown = _num(_map(cmd, value)) if ok and value is not None else "ERR"
+        out.append(ActionNode(
+            name=addr, label=f".{octet}\n{shown}", kind=Kind.COMMAND,
+            after=After.RERENDER, color_fn=_green,
+            on_press=lambda g=group, c=cmd: _press_status(g, c),  # re-poll to refresh
+        ))
     return out
 
 
 def _press_status(group: str, cmd: dict) -> str:
-    value = run_group(group, cmd)
+    results = _run(group, cmd)
     with _lock:
-        _status[(group, cmd["label"])] = value
-    return ""   # After.RERENDER redraws the label from the cache
+        _status[(group, cmd["label"])] = results
+    return ""   # After.RERENDER redraws the label(s) from the cache
