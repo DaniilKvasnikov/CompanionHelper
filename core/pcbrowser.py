@@ -164,7 +164,7 @@ def _pc_children(node) -> list:
             name="__changelist__",
             path=None,
             label=f"Лист:\n{current}",
-            provider=_list_picker,
+            provider=list_picker,
             color_fn=lambda: COLORS[Kind.NAV],
         )
     ]
@@ -187,7 +187,10 @@ def _select_list(name: str) -> str:
     return ""
 
 
-def _list_picker(node) -> list:
+def list_picker(node) -> list:
+    """Submenu: one button per target list; picking it sets the active list.
+
+    Shared by the "ПК" menu and the PDQ batch menu (core/pdqmenu.py)."""
     current = active_list()
     out: list = []
     for name in lists():

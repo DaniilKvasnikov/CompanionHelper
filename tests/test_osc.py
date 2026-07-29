@@ -92,3 +92,9 @@ def test_set_bgcolor_and_color_addresses(sock):
     (bg, _), (fg, _) = sock.sent
     assert bg == osc._message("/location/2/1/4/style/bgcolor", 10, 20, 30)
     assert fg == osc._message("/location/2/1/4/style/color", 40, 50, 60)
+
+
+def test_set_custom_variable_address(sock):
+    osc.set_custom_variable("Progress", "3")
+    (data, _), = sock.sent
+    assert data == osc._message("/custom-variable/Progress/value", "3")

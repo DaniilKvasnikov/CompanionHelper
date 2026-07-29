@@ -13,11 +13,12 @@ def load_tree(base: Path = MENUS_DIR) -> MenuNode:
     if base.is_dir():
         _fill(root)
     try:
-        from . import pcbrowser  # dynamic, DB-backed menus attach here
+        from . import pcbrowser, pdqmenu  # dynamic, DB-backed menus attach here
 
-        pcbrowser.attach(root)
+        pcbrowser.attach(root)   # "ПК": one host at a time
+        pdqmenu.attach(root)     # "PDQ": batch deploy to the active list
     except Exception as e:  # never let a dynamic menu break the static tree
-        logging.getLogger("loader").warning("pcbrowser attach failed: %s", e)
+        logging.getLogger("loader").warning("dynamic menu attach failed: %s", e)
     return root
 
 

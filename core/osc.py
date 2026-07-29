@@ -64,3 +64,8 @@ def set_bgcolor(page, row, col, r: int, g: int, b: int) -> None:
 
 def set_color(page, row, col, r: int, g: int, b: int) -> None:
     send(f"/location/{page}/{row}/{col}/style/color", r, g, b)
+
+
+def set_custom_variable(name: str, value: str) -> None:
+    """Set Companion custom variable $(custom:<name>) (global, not a button)."""
+    send(f"/custom-variable/{name}/value", value)

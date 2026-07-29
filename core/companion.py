@@ -27,3 +27,8 @@ def set_style(page, row, col, text="", bgcolor="#000000", color="#ffffff") -> No
 
 def clear(page, row, col) -> None:
     set_style(page, row, col, text="", bgcolor="#000000", color="#000000")
+
+
+def set_custom_variable(name: str, value: str) -> None:
+    """Set a Companion custom variable. Global, so it bypasses the cell diff."""
+    osc.set_custom_variable(name, value)

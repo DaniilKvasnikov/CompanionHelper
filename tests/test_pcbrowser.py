@@ -78,7 +78,7 @@ def test_pc_children_has_changelist_then_hosts(catalog):
 
 def test_list_picker_marks_active_and_selects(catalog):
     pcbrowser.refresh_catalog()
-    picker = pcbrowser._list_picker(None)
+    picker = pcbrowser.list_picker(None)
     labels = {p.name: p.label for p in picker}
     assert labels["Office"] == "* Office"  # active marked with a star
     assert labels["Lab"] == "Lab"

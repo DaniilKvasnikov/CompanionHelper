@@ -30,6 +30,13 @@ SCRIPT_TIMEOUT = 15.0      # seconds, for command buttons
 FEEDBACK_TIMEOUT = 5.0     # seconds, for feedback (.fb) scripts
 FEEDBACK_INTERVAL = 5.0    # seconds between feedback polls of the active menu
 
+# --- Progress countdown ---------------------------------------------------
+# Companion custom variable $(custom:<PROGRESS_VAR>) is kept updated with the
+# whole seconds left until the next feedback refresh, so buttons on
+# auto-updating pages can show a countdown. See core/progress.py.
+PROGRESS_VAR = "Progress"
+PROGRESS_TICK = 1.0        # seconds between countdown updates
+
 # --- PDQ Deploy integration -----------------------------------------------
 # .pdq buttons DEPLOY via this CLI (needs Enterprise license, PDQ background
 # service running, and this server started elevated/as admin). The CLI is
@@ -48,6 +55,7 @@ PING_WORKERS = 16          # parallel pings
 PC_UP = ("#12421d", "#8affa0")       # green  - responded
 PC_DOWN = ("#4a1414", "#ff9a9a")     # red    - no reply
 PC_UNKNOWN = ("#2b2b2b", "#cccccc")  # gray   - not pinged yet
+PC_OFF = ("#161616", "#5a5a5a")      # dim    - toggled out of the PDQ deploy set
 
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
