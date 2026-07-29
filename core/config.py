@@ -31,11 +31,11 @@ FEEDBACK_TIMEOUT = 5.0     # seconds, for feedback (.fb) scripts
 FEEDBACK_INTERVAL = 5.0    # seconds between feedback polls of the active menu
 
 # --- Progress countdown ---------------------------------------------------
-# Companion custom variable $(custom:<PROGRESS_VAR>) is kept updated with the
-# whole seconds left until the next feedback refresh, so buttons on
-# auto-updating pages can show a countdown. See core/progress.py.
+# Companion custom variable $(custom:<PROGRESS_VAR>) is kept updated with a
+# 0..100 progress value toward the next feedback refresh, so buttons on
+# auto-updating pages can show a progress bar. See core/progress.py.
 PROGRESS_VAR = "Progress"
-PROGRESS_TICK = 1.0        # seconds between countdown updates
+PROGRESS_TICK = 1.0        # seconds between progress updates
 
 # --- PDQ Deploy integration -----------------------------------------------
 # .pdq buttons DEPLOY via this CLI (needs Enterprise license, PDQ background

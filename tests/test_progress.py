@@ -12,30 +12,32 @@ def clock(monkeypatch):
     return t
 
 
-def test_mark_sets_countdown_to_interval(clock):
+def test_mark_starts_at_zero_percent(clock):
     progress.mark(5.0)
-    assert progress.remaining() == 5
+    assert progress.percent() == 0
 
 
-def test_remaining_counts_down(clock):
+def test_percent_fills_toward_next_refresh(clock):
     progress.mark(5.0)          # due at 105
-    clock["now"] = 102.4
-    assert progress.remaining() == 3   # round(2.6)
+    clock["now"] = 102.5
+    assert progress.percent() == 50    # halfway
     clock["now"] = 104.9
-    assert progress.remaining() == 0   # round(0.1)
+    assert progress.percent() == 98
 
 
-def test_remaining_clamped_at_zero_when_overdue(clock):
+def test_percent_clamped_at_100_when_overdue(clock):
     progress.mark(5.0)
     clock["now"] = 200.0        # long past due
-    assert progress.remaining() == 0
+    assert progress.percent() == 100
 
 
 def test_mark_without_arg_reuses_last_interval(clock):
     progress.mark(8.0)          # remember 8s
-    clock["now"] = 108.0        # elapsed
+    clock["now"] = 108.0        # a full interval elapsed
     progress.mark()             # reset, no explicit interval
-    assert progress.remaining() == 8
+    assert progress.percent() == 0     # reset -> 0%, still an 8s interval
+    clock["now"] = 112.0
+    assert progress.percent() == 50    # 4s of 8s
 
 
 def test_publish_sets_progress_custom_variable(clock, monkeypatch):
@@ -45,5 +47,6 @@ def test_publish_sets_progress_custom_variable(clock, monkeypatch):
         lambda name, value: captured.update(name=name, value=value),
     )
     progress.mark(5.0)
+    clock["now"] = 102.5
     progress._publish()
-    assert captured == {"name": progress.PROGRESS_VAR, "value": "5"}
+    assert captured == {"name": progress.PROGRESS_VAR, "value": "50"}
