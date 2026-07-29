@@ -1,5 +1,0 @@
-{
-  "note": "Deploy a package to every PC in a PDQ Target List (members read from the DB). Lists: python -m core.pdq lists",
-  "package": "Install",
-  "target_list": "All"
-}
