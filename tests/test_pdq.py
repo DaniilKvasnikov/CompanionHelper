@@ -7,7 +7,7 @@ from core import pdq
 
 
 def test_deploy_args():
-    assert pdq.deploy_args("P", ["a", "b"]) == ["Deploy", "-Package", "P", "-Targets", "a,b"]
+    assert pdq.deploy_args("P", ["a", "b"]) == ["Deploy", "-Package", "P", "-Targets", "a", "b"]
     assert pdq.deploy_args("P", []) == ["Deploy", "-Package", "P"]
 
 
@@ -27,7 +27,7 @@ def test_args_from_config_schedule():
 def test_args_from_config_target_list_expands_members(monkeypatch):
     monkeypatch.setattr(pdq, "target_list_members", lambda name: ["h1", "h2"])
     args = pdq.args_from_config({"package": "P", "target_list": "L"})
-    assert args == ["Deploy", "-Package", "P", "-Targets", "h1,h2"]
+    assert args == ["Deploy", "-Package", "P", "-Targets", "h1", "h2"]
 
 
 def test_args_from_config_empty_target_list_raises(monkeypatch):

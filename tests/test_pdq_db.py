@@ -78,4 +78,4 @@ def test_connect_snapshots_and_reads_wal(tmp_path, monkeypatch):
 
 def test_args_from_config_target_list_uses_real_db(db):
     args = pdq.args_from_config({"package": "Chrome", "target_list": "Office"})
-    assert args == ["Deploy", "-Package", "Chrome", "-Targets", "PC-A,PC-B"]
+    assert args == ["Deploy", "-Package", "Chrome", "-Targets", "PC-A", "PC-B"]

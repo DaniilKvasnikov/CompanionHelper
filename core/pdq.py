@@ -85,9 +85,11 @@ def target_list_members(name: str) -> list[str]:
 
 # --- CLI deploy -----------------------------------------------------------
 def deploy_args(package: str, targets: list[str]) -> list[str]:
+    # PDQDeploy.exe wants the targets space-separated (each its own argv token),
+    # not comma-joined: `-Targets PC1 PC2 ...`.
     args = ["Deploy", "-Package", package]
     if targets:
-        args += ["-Targets", ",".join(targets)]
+        args += ["-Targets", *targets]
     return args
 
 

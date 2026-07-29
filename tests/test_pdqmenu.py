@@ -127,7 +127,7 @@ def test_deploy_targets_current_scope(catalog, monkeypatch):
 
     pkg_btn = pdqmenu._pdq_children(None)[3]   # first package (Chrome)
     msg = pkg_btn.on_press()
-    assert captured["args"] == ["Deploy", "-Package", "Chrome", "-Targets", "PC-A,PC-C"]
+    assert captured["args"] == ["Deploy", "-Package", "Chrome", "-Targets", "PC-A", "PC-C"]
     assert msg == "queued"
 
 
