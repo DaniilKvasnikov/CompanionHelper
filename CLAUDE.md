@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Working style (read first)
+
+**Do only what was asked. Don't add unrequested features, variants, or "nice to have" extras.** If something beyond the request seems useful (extra buttons, presets, options, refactors), *ask first* whether it's wanted rather than building it. Scope creep — however well-intentioned — is not welcome here; a smaller change that does exactly what was asked is always preferred.
+
 ## What this is
 
 A modular menu system for a Stream Deck driven through [Bitfocus Companion](https://bitfocus.io/companion). The on-disk `menus/` folder tree defines a hierarchy of submenus and script-backed buttons; this FastAPI service renders that hierarchy onto the deck and runs the scripts when buttons are pressed.
