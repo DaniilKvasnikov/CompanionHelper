@@ -7,5 +7,13 @@
 
   { "note": "A command with 'response_field' is a STATUS button: the (dotted) field is read from each controller's JSON reply, aggregated across the group, and shown on the button (all equal -> value; numbers differ -> min-max range; else a distinct list). An optional 'labels' map turns raw values into names. When the group disagrees, pressing the button opens a per-controller breakdown (last IP octet -> value). Polled in the background and refreshed on press." },
   { "label": "Яркость", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "body": {}, "response_field": "obj.brightness" },
-  { "label": "HDR", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "body": {}, "response_field": "obj.hdrSetting", "labels": { "0": "from input", "1": "SDR", "2": "HLG", "3": "PQ" } }
+  { "label": "HDR", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "body": {}, "response_field": "obj.hdrSetting", "labels": { "0": "from input", "1": "SDR", "2": "HLG", "3": "PQ" } },
+
+  { "note": "Screen test pattern. 'Тест' is the status (testPicEn 0/1). The setters use setTestImage: turn it off, or show a solid color (testPicEn=1 + RGB values; 1023 = full on 10-bit). areaId/testPicMode/testPicDeep follow the device example — adjust for your hardware." },
+  { "label": "Тест", "method": "POST", "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "body": { "id": 1 }, "response_field": "obj.testPicEn", "labels": { "0": "выкл", "1": "вкл" } },
+  { "label": "Тест выкл",   "method": "POST", "path": "/ng_ctrl_sys/input/setTestImage", "body": { "areaId": 1, "testPicEn": 0, "testPicMode": 1, "testPicRedValue": 1023, "testPicGreenValue": 1023, "testPicBlueValue": 1023, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+  { "label": "Тест белый",  "method": "POST", "path": "/ng_ctrl_sys/input/setTestImage", "body": { "areaId": 1, "testPicEn": 1, "testPicMode": 1, "testPicRedValue": 1023, "testPicGreenValue": 1023, "testPicBlueValue": 1023, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+  { "label": "Тест красный","method": "POST", "path": "/ng_ctrl_sys/input/setTestImage", "body": { "areaId": 1, "testPicEn": 1, "testPicMode": 1, "testPicRedValue": 1023, "testPicGreenValue": 0, "testPicBlueValue": 0, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+  { "label": "Тест зелёный","method": "POST", "path": "/ng_ctrl_sys/input/setTestImage", "body": { "areaId": 1, "testPicEn": 1, "testPicMode": 1, "testPicRedValue": 0, "testPicGreenValue": 1023, "testPicBlueValue": 0, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+  { "label": "Тест синий",  "method": "POST", "path": "/ng_ctrl_sys/input/setTestImage", "body": { "areaId": 1, "testPicEn": 1, "testPicMode": 1, "testPicRedValue": 0, "testPicGreenValue": 0, "testPicBlueValue": 1023, "testPicDeep": 1, "testPicPlayStatus": 0 } }
 ]
