@@ -23,6 +23,8 @@ def catalog(monkeypatch):
     monkeypatch.setattr(pcbrowser, "_packages", [])
     monkeypatch.setattr(pcbrowser, "_members", {})
     monkeypatch.setattr(pcbrowser, "_ping", {})
+    monkeypatch.setattr(pcbrowser, "_aliases", {})
+    monkeypatch.setattr(pcbrowser, "_load_aliases", lambda: {})  # no disk in catalog tests
     return data
 
 
@@ -49,6 +51,36 @@ def test_active_list_ignores_unknown_selection(catalog):
     pcbrowser.refresh_catalog()
     pcbrowser.set_active("Ghost")  # not among known lists
     assert pcbrowser.active_list() == "Office"  # falls back to first
+
+
+# --- PC aliases -----------------------------------------------------------
+def test_load_aliases_parses_pairs_and_skips_junk(tmp_path, monkeypatch):
+    f = tmp_path / "pc_aliases.txt"
+    f.write_text(
+        "# comment\n192.168.0.5 = Reception\n\nno-equals-line\n192.168.0.6=Studio A  # inline\n",
+        encoding="utf-8")
+    monkeypatch.setattr(pcbrowser, "PC_ALIASES_FILE", f)
+    assert pcbrowser._load_aliases() == {"192.168.0.5": "Reception", "192.168.0.6": "Studio A"}
+
+
+def test_load_aliases_missing_file_is_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(pcbrowser, "PC_ALIASES_FILE", tmp_path / "nope.txt")
+    assert pcbrowser._load_aliases() == {}
+
+
+def test_host_label_shows_alias_above_ip(monkeypatch):
+    monkeypatch.setattr(pcbrowser, "_aliases", {"192.168.0.5": "Reception"})
+    assert pcbrowser.host_label("192.168.0.5") == "Reception\n192.168.0.5"
+    assert pcbrowser.host_label("192.168.0.9") == "192.168.0.9"   # no alias -> raw host
+
+
+def test_members_sorted_aliased_first_then_by_host(monkeypatch):
+    monkeypatch.setattr(pcbrowser, "_lists", ["L"])
+    monkeypatch.setattr(pcbrowser, "_active_list", "L")
+    monkeypatch.setattr(pcbrowser, "_members", {"L": ["192.168.0.9", "192.168.0.5", "192.168.0.7"]})
+    monkeypatch.setattr(pcbrowser, "_aliases", {"192.168.0.7": "Alpha", "192.168.0.5": "Zeta"})
+    # aliased first by alias (Alpha < Zeta), then unaliased hosts by ip
+    assert pcbrowser.members() == ["192.168.0.7", "192.168.0.5", "192.168.0.9"]
 
 
 def test_pc_color_reflects_ping_state(catalog):

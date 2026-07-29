@@ -98,7 +98,7 @@ def _pdq_children(node) -> list:
 def _pc_toggle_picker(node) -> list:
     out: list = []
     for host in pcbrowser.members():
-        label = ("✓ " if is_enabled(host) else "✗ ") + host
+        label = ("✓ " if is_enabled(host) else "✗ ") + pcbrowser.host_label(host)
         out.append(
             ActionNode(name=host, label=label, kind=Kind.COMMAND,
                        after=After.RERENDER,

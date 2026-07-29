@@ -22,6 +22,7 @@ from . import pdq
 from .runner import RunResult
 from .config import (
     COLORS,
+    PC_ALIASES_FILE,
     PC_DOWN,
     PC_UNKNOWN,
     PC_UP,
@@ -40,12 +41,16 @@ _lists: list[str] = []                    # all target-list names (cached)
 _packages: list[str] = []                 # all package names (cached)
 _members: dict[str, list[str]] = {}       # list name -> hosts (cached)
 _ping: dict[str, bool] = {}               # host -> reachable
+_aliases: dict[str, str] = {}             # host/ip -> display alias (from file)
 
 
 # --- cached catalog (read from the PDQ DB) --------------------------------
 def refresh_catalog() -> None:
-    """Reload package + target-list names from the DB. Call on start/reload."""
-    global _lists, _packages
+    """Reload target-list / package names from the DB and PC aliases from disk."""
+    global _lists, _packages, _aliases
+    aliases = _load_aliases()
+    with _lock:
+        _aliases = aliases
     try:
         lists = pdq.list_target_lists()
         packages = pdq.list_packages()
@@ -56,6 +61,42 @@ def refresh_catalog() -> None:
         _lists = lists
         _packages = packages
     _refresh_members()
+
+
+def _load_aliases() -> dict[str, str]:
+    """Read the optional 'ip = alias' file; missing/invalid lines are skipped."""
+    out: dict[str, str] = {}
+    try:
+        lines = PC_ALIASES_FILE.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return out
+    except Exception as e:  # noqa: BLE001
+        log.warning("pc aliases unreadable: %s", e)
+        return out
+    for ln in lines:
+        ln = ln.split("#", 1)[0].strip()
+        if "=" not in ln:
+            continue
+        ip, name = (s.strip() for s in ln.split("=", 1))
+        if ip and name:
+            out[ip] = name
+    return out
+
+
+def alias(host: str) -> str | None:
+    with _lock:
+        return _aliases.get(host)
+
+
+def host_label(host: str) -> str:
+    """Deck label for a host: the alias above the ip if aliased, else the raw host."""
+    name = alias(host)
+    return f"{name}\n{host}" if name else host
+
+
+def _host_sort_key(host: str):
+    name = alias(host)
+    return (0, name.casefold()) if name else (1, host)  # aliased first, sorted by alias
 
 
 def _refresh_members() -> None:
@@ -91,7 +132,8 @@ def packages() -> list[str]:
 def members() -> list[str]:
     name = active_list()
     with _lock:
-        return list(_members.get(name, [])) if name else []
+        hosts = list(_members.get(name, [])) if name else []
+    return sorted(hosts, key=_host_sort_key)  # aliased first (by alias), then by host
 
 
 def set_active(name: str) -> None:
@@ -173,7 +215,7 @@ def _pc_children(node) -> list:
             MenuNode(
                 name=host,
                 path=None,
-                label=host,
+                label=host_label(host),
                 provider=_pc_packages,
                 context={"host": host},
                 color_fn=lambda h=host: pc_color(h),

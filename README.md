@@ -111,6 +111,7 @@ core/
   state.py         per-page navigation state
 menus/             the menu hierarchy (folders = submenus, files = buttons)
 aoto/              Aoto groups (groups/*.txt) and commands (commands.json)
+pc_aliases.txt     optional "ip = alias" names for PDQ hosts on the deck
 tests/             pytest suite
 ```
 

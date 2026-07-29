@@ -47,6 +47,10 @@ PDQ_DB_PATH = r"C:\ProgramData\Admin Arsenal\PDQ Deploy\Database.db"
 PDQ_TIMEOUT = 60.0         # seconds, for a PDQ CLI call
 
 # --- PC browser (dynamic menu from the active PDQ target list) ------------
+# Optional aliases file: lines "ip = alias". An aliased host shows its alias
+# above the ip on the deck and sorts by the alias. See core/pcbrowser.py.
+PC_ALIASES_FILE = Path(__file__).resolve().parent.parent / "pc_aliases.txt"
+
 PING_INTERVAL = 15.0       # seconds between ping sweeps of the active list
 PING_TIMEOUT_MS = 800      # per-host ping wait
 PING_WORKERS = 16          # parallel pings
