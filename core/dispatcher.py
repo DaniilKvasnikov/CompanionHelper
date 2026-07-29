@@ -18,9 +18,10 @@ _tree: MenuNode = loader.load_tree()
 
 def reload_tree() -> None:
     global _tree
-    from . import pcbrowser
+    from . import aoto, pcbrowser
 
     pcbrowser.refresh_catalog()  # re-read packages / target lists from the DB
+    aoto.refresh()               # re-read Aoto groups / commands from disk
     _tree = loader.load_tree()
     log.info("menu tree reloaded")
 

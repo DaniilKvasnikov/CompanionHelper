@@ -32,6 +32,7 @@ Two transports, opposite directions:
 - **PDQ Deploy integration** — deploy packages to specific PCs or whole target lists straight from the deck. Package and target-list names are read from PDQ's SQLite database; deploys run through `PDQDeploy.exe`.
 - **Dynamic "PC" menu** — one button per host in the active PDQ target list, colored live by ping status; pick a host, then a package, to deploy to that single machine.
 - **Batch "PDQ" menu** — pick the active list, toggle individual hosts in or out, choose a scope (whole list vs. enabled hosts), then deploy a package to the whole selection in one call.
+- **"AOTO" LED-processor menu** — control [Aoto](https://www.aoto.com/) video processors over HTTP, grouped by file. Pick a group, then a command; the request fires to every controller in the group at once. Commands that return a status (e.g. current display mode) show the value on the button, aggregated across the group and refreshed in the background.
 - **Progress variable** — a Companion custom variable `$(custom:Progress)` filled 0→100 as the next auto-refresh approaches, so an auto-updating page can show a progress bar.
 
 ## Menu tree conventions
@@ -104,10 +105,12 @@ core/
   pdq.py           PDQ Deploy: DB reads + CLI deploys
   pcbrowser.py     the dynamic "PC" menu + shared catalog/ping cache
   pdqmenu.py       the batch "PDQ" deploy menu
+  aoto.py          the "AOTO" LED-processor HTTP menu
   progress.py      the $(custom:Progress) refresh progress bar
   feedback.py      background poller for feedback buttons
   state.py         per-page navigation state
 menus/             the menu hierarchy (folders = submenus, files = buttons)
+aoto/              Aoto groups (groups/*.txt) and commands (commands.json)
 tests/             pytest suite
 ```
 

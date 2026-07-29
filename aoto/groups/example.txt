@@ -1,0 +1,5 @@
+# One controller address (host:port) per line. Text after '#' is a comment.
+# The filename without .txt is the group's label; prefix "NN_" to order it (stripped).
+# Copy this file per group and replace the addresses with your real controllers.
+192.168.1.101:8080
+192.168.1.102:8080

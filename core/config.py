@@ -57,6 +57,19 @@ PC_DOWN = ("#4a1414", "#ff9a9a")     # red    - no reply
 PC_UNKNOWN = ("#2b2b2b", "#cccccc")  # gray   - not pinged yet
 PC_OFF = ("#161616", "#5a5a5a")      # dim    - toggled out of the PDQ deploy set
 
+# --- Aoto LED-processor control (dynamic menu over HTTP) ------------------
+# Groups are files in AOTO_GROUPS_DIR (one controller host:port per line);
+# commands are shared across groups and defined in AOTO_COMMANDS_FILE. A
+# command press fires an HTTP request to every controller in the group. A
+# command with a "response_field" is polled every AOTO_POLL_INTERVAL and its
+# value shown on the button (aggregated across the group). See core/aoto.py.
+AOTO_DIR = Path(__file__).resolve().parent.parent / "aoto"
+AOTO_GROUPS_DIR = AOTO_DIR / "groups"
+AOTO_COMMANDS_FILE = AOTO_DIR / "commands.json"
+AOTO_HTTP_TIMEOUT = 4.0      # seconds, per controller request
+AOTO_POLL_INTERVAL = 10.0    # seconds between status polls
+AOTO_WORKERS = 16            # parallel requests within a group
+
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
     Kind.MENU:     ("#12233b", "#ffffff"),  # submenu / folder

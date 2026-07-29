@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from core import config, dispatcher, feedback, pcbrowser, progress, state
+from core import aoto, config, dispatcher, feedback, pcbrowser, progress, state
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("main")
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI):
     # Load PDQ package/target-list names, draw the root menu, then start the
     # feedback poller and the PC ping sweep (which redraws pages as hosts change).
     pcbrowser.refresh_catalog()
+    aoto.refresh()
     dispatcher.render_page(config.DEFAULT_PAGE)
     dispatcher.refresh_feedback(config.DEFAULT_PAGE)
     feedback.start_poller(
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
         on_cycle=progress.mark,  # reset the $(custom:Progress) countdown each cycle
     )
     pcbrowser.start(dispatcher.render_all_pages)
+    aoto.start(dispatcher.render_all_pages)    # poll Aoto status commands
     progress.start(config.FEEDBACK_INTERVAL)  # tick the countdown once a second
     yield
 
