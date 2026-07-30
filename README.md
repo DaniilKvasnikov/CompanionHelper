@@ -33,7 +33,7 @@ Two transports, opposite directions:
 - **Dynamic "PC" menu** — one button per host in the active PDQ target list, colored live by ping status; pick a host, then a package, to deploy to that single machine.
 - **Batch "PDQ" menu** — pick the active list, toggle individual hosts in or out, choose a scope (whole list vs. enabled hosts), then deploy a package to the whole selection in one call.
 - **"AOTO" LED-processor menu** — control [Aoto](https://www.aoto.com/) video processors over HTTP, grouped by file. Pick a group, then a command; the request fires to every controller in the group at once. Commands that return a status (e.g. current display mode) show the value on the button, aggregated across the group and refreshed in the background.
-- **"Touch" menu** — trigger clips/files in [TouchDesigner](https://derivative.ca/) over OSC, grouped by file. Pick a group, then a button; each press fires one OSC message (default `127.0.0.1:7777`, address `/file`) carrying the button's filename.
+- **"Touch" menu** — trigger clips/files in [TouchDesigner](https://derivative.ca/) over OSC, grouped by file. Pick a group, then a button; each press fires one OSC message (default `127.0.0.1:7777`) carrying the button's filename. Each group targets its own OSC address (an `@address = /path` line in the group file), so different groups can drive different things.
 - **"Develop" menu** — a single button that runs `git pull` on the project and restarts the server so the new code takes effect, straight from the deck.
 - **Progress variable** — a Companion custom variable `$(custom:Progress)` filled 0→100 as the next auto-refresh approaches, so an auto-updating page can show a progress bar.
 

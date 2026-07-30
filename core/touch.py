@@ -3,19 +3,27 @@
 A "Touch" button on the main menu opens a list of groups. Each group is a file
 in touch/groups/ listing buttons, one "label = filename" per line. Selecting a
 group opens its buttons; pressing a button fires a single OSC message to
-TouchDesigner (TOUCH_OSC_HOST:TOUCH_OSC_PORT) at TOUCH_OSC_ADDRESS with the
-button's filename as a string argument.
+TouchDesigner (TOUCH_OSC_HOST:TOUCH_OSC_PORT) with the button's filename as a
+string argument.
 
-Groups organize buttons only: every button targets the same OSC destination and
-address, differing only by the filename it sends. This module owns the group
-catalog (read from disk on start/reload); pressing sends fire-and-forget OSC.
-See CLAUDE.md for the conventions.
+Each group has its own OSC address, so different groups (стена, потолок, …) can
+target different things in TouchDesigner. A group file may set it with a
+directive line:
+
+    @address = /wall        # this group's OSC address (default: TOUCH_OSC_ADDRESS)
+    Intro = intro.tox       # a button
+    Клип A = clipA.mov
+
+Without an @address line the group falls back to TOUCH_OSC_ADDRESS. This module
+owns the group catalog (read from disk on start/reload); pressing sends
+fire-and-forget OSC. See CLAUDE.md for the conventions.
 """
 from __future__ import annotations
 
 import logging
 import re
 import threading
+from dataclasses import dataclass, field
 
 from . import osc
 from .config import TOUCH_GROUPS_DIR, TOUCH_OSC_ADDRESS, TOUCH_OSC_HOST, TOUCH_OSC_PORT
@@ -24,8 +32,15 @@ from .model import ActionNode, MenuNode
 
 log = logging.getLogger("touch")
 
+
+@dataclass
+class _Group:
+    address: str                                    # OSC address for this group's buttons
+    buttons: list[tuple[str, str]] = field(default_factory=list)   # [(label, filename), ...]
+
+
 _lock = threading.RLock()
-_groups: dict[str, list[tuple[str, str]]] = {}   # group label -> [(button label, filename), ...]
+_groups: dict[str, _Group] = {}                     # group label -> _Group
 
 
 # --- catalog (read from disk) ---------------------------------------------
@@ -41,8 +56,8 @@ def _group_label(stem: str) -> str:
     return re.sub(r"^\d+[_\-\s]*", "", stem) or stem   # strip NN_ ordering prefix
 
 
-def _load_groups() -> dict[str, list[tuple[str, str]]]:
-    out: dict[str, list[tuple[str, str]]] = {}
+def _load_groups() -> dict[str, _Group]:
+    out: dict[str, _Group] = {}
     try:
         files = sorted(p for p in TOUCH_GROUPS_DIR.iterdir() if p.suffix.lower() == ".txt")
     except FileNotFoundError:
@@ -56,16 +71,27 @@ def _load_groups() -> dict[str, list[tuple[str, str]]]:
         except Exception as e:  # noqa: BLE001
             log.warning("touch group %s unreadable: %s", p.name, e)
             continue
-        buttons_: list[tuple[str, str]] = []
-        for ln in lines:
-            ln = ln.split("#", 1)[0].strip()
-            if not ln or "=" not in ln:
-                continue
-            label, filename = (s.strip() for s in ln.split("=", 1))
-            if label and filename:
-                buttons_.append((label, filename))
-        out[_group_label(p.stem)] = buttons_
+        out[_group_label(p.stem)] = _parse_group(lines)
     return out
+
+
+def _parse_group(lines: list[str]) -> _Group:
+    group = _Group(address=TOUCH_OSC_ADDRESS)
+    for ln in lines:
+        ln = ln.split("#", 1)[0].strip()
+        if not ln:
+            continue
+        if ln.startswith("@"):                       # directive, e.g. "@address = /wall"
+            key, _, val = ln[1:].partition("=")
+            if key.strip().lower() == "address" and val.strip():
+                group.address = val.strip()
+            continue
+        if "=" not in ln:
+            continue
+        label, filename = (s.strip() for s in ln.split("=", 1))
+        if label and filename:
+            group.buttons.append((label, filename))
+    return group
 
 
 def groups() -> list[str]:
@@ -75,13 +101,20 @@ def groups() -> list[str]:
 
 def buttons(group: str) -> list[tuple[str, str]]:
     with _lock:
-        return list(_groups.get(group, []))
+        g = _groups.get(group)
+        return list(g.buttons) if g else []
+
+
+def address(group: str) -> str:
+    with _lock:
+        g = _groups.get(group)
+        return g.address if g else TOUCH_OSC_ADDRESS
 
 
 # --- OSC send -------------------------------------------------------------
-def send_file(filename: str) -> str:
-    """Fire the filename to TouchDesigner over OSC. Returns a short button line."""
-    osc.send_to(TOUCH_OSC_HOST, TOUCH_OSC_PORT, TOUCH_OSC_ADDRESS, filename)
+def send_file(address: str, filename: str) -> str:
+    """Fire the filename to TouchDesigner at `address` over OSC. Returns a button line."""
+    osc.send_to(TOUCH_OSC_HOST, TOUCH_OSC_PORT, address, filename)
     return "OK"
 
 
@@ -106,10 +139,11 @@ def _touch_children(node) -> list:
 
 def _group_buttons(node) -> list:
     group = node.context["group"]
+    addr = address(group)
     return [
         ActionNode(
             name=label, label=label, kind=Kind.COMMAND, after=After.TEXT,
-            on_press=lambda f=filename: send_file(f),
+            on_press=lambda a=addr, f=filename: send_file(a, f),
         )
         for label, filename in buttons(group)
     ]

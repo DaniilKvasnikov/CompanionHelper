@@ -1,8 +1,9 @@
 # One button per line, "label = filename". Text after '#' is a comment.
 # The label is shown on the deck; pressing sends the filename to TouchDesigner
-# over OSC (address /file by default; host/port in core/config.py TOUCH_*).
+# over OSC. The @address line sets THIS group's OSC address (host/port in
+# core/config.py TOUCH_*); without it the group uses TOUCH_OSC_ADDRESS.
 # The filename without .txt is the group's label; prefix "NN_" to order it (stripped).
-# Replace these with your real clips.
+@address = /wall
 Intro = intro.tox
 Клип A = clipA.mov
 Клип B = clipB.mov

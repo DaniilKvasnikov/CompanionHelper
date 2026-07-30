@@ -9,14 +9,15 @@ from core import touch
 from core.config import TOUCH_OSC_ADDRESS, TOUCH_OSC_HOST, TOUCH_OSC_PORT
 from core.constants import After, Kind
 from core.model import ActionNode, MenuNode
+from core.touch import _Group
 
 
 @pytest.fixture
 def catalog(monkeypatch):
     """In-memory groups, no disk or network."""
     groups = {
-        "Стена": [("Intro", "intro.tox"), ("Клип A", "clipA.mov")],
-        "Потолок": [("Звёзды", "stars.mov")],
+        "Стена": _Group(address="/wall", buttons=[("Intro", "intro.tox"), ("Клип A", "clipA.mov")]),
+        "Потолок": _Group(address="/ceiling", buttons=[("Звёзды", "stars.mov")]),
     }
     monkeypatch.setattr(touch, "_groups", dict(groups))
     return {"groups": groups}
@@ -27,13 +28,24 @@ def test_load_groups_parses_label_file_comments_and_prefix(tmp_path, monkeypatch
     d = tmp_path / "groups"
     d.mkdir()
     (d / "01_Стена.txt").write_text(
-        "# a comment\nIntro = intro.tox\n\nКлип A = clipA.mov  # inline\nbad line\n",
+        "# a comment\n@address = /wall\nIntro = intro.tox\n\nКлип A = clipA.mov  # inline\nbad line\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(touch, "TOUCH_GROUPS_DIR", d)
     out = touch._load_groups()
-    # NN_ prefix stripped; "bad line" (no '=') skipped
-    assert out == {"Стена": [("Intro", "intro.tox"), ("Клип A", "clipA.mov")]}
+    # NN_ prefix stripped; @address captured; "bad line" (no '=') skipped
+    assert list(out) == ["Стена"]
+    assert out["Стена"].address == "/wall"
+    assert out["Стена"].buttons == [("Intro", "intro.tox"), ("Клип A", "clipA.mov")]
+
+
+def test_load_groups_without_address_uses_default(tmp_path, monkeypatch):
+    d = tmp_path / "groups"
+    d.mkdir()
+    (d / "Потолок.txt").write_text("Звёзды = stars.mov\n", encoding="utf-8")
+    monkeypatch.setattr(touch, "TOUCH_GROUPS_DIR", d)
+    out = touch._load_groups()
+    assert out["Потолок"].address == TOUCH_OSC_ADDRESS   # no @address -> config default
 
 
 def test_load_groups_missing_dir_is_empty(tmp_path, monkeypatch):
@@ -42,11 +54,11 @@ def test_load_groups_missing_dir_is_empty(tmp_path, monkeypatch):
 
 
 # --- OSC send -------------------------------------------------------------
-def test_send_file_fires_osc_to_touch_destination(monkeypatch):
+def test_send_file_fires_osc_to_the_given_address(monkeypatch):
     sent = []
     monkeypatch.setattr(touch.osc, "send_to", lambda *a: sent.append(a))
-    assert touch.send_file("clipA.mov") == "OK"
-    assert sent == [(TOUCH_OSC_HOST, TOUCH_OSC_PORT, TOUCH_OSC_ADDRESS, "clipA.mov")]
+    assert touch.send_file("/wall", "clipA.mov") == "OK"
+    assert sent == [(TOUCH_OSC_HOST, TOUCH_OSC_PORT, "/wall", "clipA.mov")]
 
 
 # --- menu tree ------------------------------------------------------------
@@ -80,10 +92,11 @@ def test_group_buttons_builds_action_nodes(catalog):
                for b in btns)
 
 
-def test_button_press_sends_its_filename(catalog, monkeypatch):
+def test_button_press_sends_to_its_groups_address(catalog, monkeypatch):
     sent = []
     monkeypatch.setattr(touch.osc, "send_to", lambda *a: sent.append(a))
-    node = MenuNode("Стена", None, "Стена", context={"group": "Стена"})
-    btns = touch._group_buttons(node)
-    assert btns[1].on_press() == "OK"                 # "Клип A"
-    assert sent[0][3] == "clipA.mov"                  # its own filename, not the first button's
+    # Стена -> /wall, Потолок -> /ceiling: each group's buttons use its own address
+    touch._group_buttons(MenuNode("Стена", None, "Стена", context={"group": "Стена"}))[1].on_press()
+    touch._group_buttons(MenuNode("Потолок", None, "Потолок", context={"group": "Потолок"}))[0].on_press()
+    assert sent[0][2:] == ("/wall", "clipA.mov")
+    assert sent[1][2:] == ("/ceiling", "stars.mov")
