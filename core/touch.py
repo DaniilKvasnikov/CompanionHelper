@@ -14,9 +14,14 @@ directive line:
     Intro = intro.tox       # a button
     Клип A = clipA.mov
 
-Without an @address line the group falls back to TOUCH_OSC_ADDRESS. This module
-owns the group catalog (read from disk on start/reload); pressing sends
-fire-and-forget OSC. See CLAUDE.md for the conventions.
+Without an @address line the group falls back to TOUCH_OSC_ADDRESS.
+
+The Touch tab also has top-level buttons (TOUCH_COMMANDS: file/base/fps),
+alongside the groups, that each fire a *no-argument* OSC message to an address
+named after them (e.g. "file" -> /file).
+
+This module owns the group catalog (read from disk on start/reload); pressing
+sends fire-and-forget OSC. See CLAUDE.md for the conventions.
 """
 from __future__ import annotations
 
@@ -26,7 +31,13 @@ import threading
 from dataclasses import dataclass, field
 
 from . import osc
-from .config import TOUCH_GROUPS_DIR, TOUCH_OSC_ADDRESS, TOUCH_OSC_HOST, TOUCH_OSC_PORT
+from .config import (
+    TOUCH_COMMANDS,
+    TOUCH_GROUPS_DIR,
+    TOUCH_OSC_ADDRESS,
+    TOUCH_OSC_HOST,
+    TOUCH_OSC_PORT,
+)
 from .constants import After, Kind
 from .model import ActionNode, MenuNode
 
@@ -118,6 +129,12 @@ def send_file(address: str, filename: str) -> str:
     return "OK"
 
 
+def send_command(name: str) -> str:
+    """Fire a no-argument OSC message to /<name> (e.g. 'file' -> /file)."""
+    osc.send_to(TOUCH_OSC_HOST, TOUCH_OSC_PORT, f"/{name}")
+    return "OK"
+
+
 # --- menu tree (providers) -------------------------------------------------
 def attach(root: MenuNode) -> None:
     """Insert the Touch menu after the ПК/PDQ/AOTO tabs on the main menu."""
@@ -131,10 +148,19 @@ def attach(root: MenuNode) -> None:
 
 
 def _touch_children(node) -> list:
-    return [
+    # Top-level no-argument commands (file/base/fps), then the group menus.
+    commands = [
+        ActionNode(
+            name=cmd, label=cmd, kind=Kind.COMMAND, after=After.TEXT,
+            on_press=lambda c=cmd: send_command(c),
+        )
+        for cmd in TOUCH_COMMANDS
+    ]
+    menus = [
         MenuNode(name=g, path=None, label=g, provider=_group_buttons, context={"group": g})
         for g in groups()
     ]
+    return commands + menus
 
 
 def _group_buttons(node) -> list:

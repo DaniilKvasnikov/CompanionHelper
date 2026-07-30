@@ -6,7 +6,7 @@ catalog-loading tests via tmp files.
 import pytest
 
 from core import touch
-from core.config import TOUCH_OSC_ADDRESS, TOUCH_OSC_HOST, TOUCH_OSC_PORT
+from core.config import TOUCH_COMMANDS, TOUCH_OSC_ADDRESS, TOUCH_OSC_HOST, TOUCH_OSC_PORT
 from core.constants import After, Kind
 from core.model import ActionNode, MenuNode
 from core.touch import _Group
@@ -61,6 +61,13 @@ def test_send_file_fires_osc_to_the_given_address(monkeypatch):
     assert sent == [(TOUCH_OSC_HOST, TOUCH_OSC_PORT, "/wall", "clipA.mov")]
 
 
+def test_send_command_fires_no_argument_osc_to_named_address(monkeypatch):
+    sent = []
+    monkeypatch.setattr(touch.osc, "send_to", lambda *a: sent.append(a))
+    assert touch.send_command("fps") == "OK"
+    assert sent == [(TOUCH_OSC_HOST, TOUCH_OSC_PORT, "/fps")]   # address only, no args
+
+
 # --- menu tree ------------------------------------------------------------
 def test_attach_inserts_after_pc_pdq_aoto():
     root = MenuNode("", None, "", children=[
@@ -77,11 +84,21 @@ def test_attach_at_top_when_no_tabs():
     assert root.children[0].name == "__touch__"
 
 
-def test_touch_children_lists_groups(catalog):
+def test_touch_children_lists_commands_then_groups(catalog):
     kids = touch._touch_children(None)
-    assert [k.name for k in kids] == ["Стена", "Потолок"]
-    assert all(isinstance(k, MenuNode) for k in kids)
-    assert kids[0].context == {"group": "Стена"}
+    assert [k.name for k in kids] == [*TOUCH_COMMANDS, "Стена", "Потолок"]
+    # the leading TOUCH_COMMANDS are no-arg ActionNodes; the rest are group menus
+    cmds, menus = kids[:len(TOUCH_COMMANDS)], kids[len(TOUCH_COMMANDS):]
+    assert all(isinstance(k, ActionNode) for k in cmds)
+    assert all(isinstance(k, MenuNode) and k.context.get("group") for k in menus)
+
+
+def test_touch_command_press_fires_no_arg_osc(catalog, monkeypatch):
+    sent = []
+    monkeypatch.setattr(touch.osc, "send_to", lambda *a: sent.append(a))
+    kids = touch._touch_children(None)
+    kids[0].on_press()                       # first command, e.g. "file"
+    assert sent == [(TOUCH_OSC_HOST, TOUCH_OSC_PORT, f"/{TOUCH_COMMANDS[0]}")]
 
 
 def test_group_buttons_builds_action_nodes(catalog):

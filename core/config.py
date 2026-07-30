@@ -85,6 +85,9 @@ TOUCH_GROUPS_DIR = TOUCH_DIR / "groups"
 TOUCH_OSC_HOST = "127.0.0.1"
 TOUCH_OSC_PORT = 7777
 TOUCH_OSC_ADDRESS = "/file"   # default OSC address when a group sets no @address
+# Top-level Touch buttons (alongside the groups) that fire a no-argument OSC
+# message to an address named after them, e.g. "file" -> /file. See core/touch.py.
+TOUCH_COMMANDS = ("file", "base", "fps")
 
 # --- Develop tab (pull latest changes + restart the server) ---------------
 # A "Develop" tab whose button runs `git pull` in PROJECT_ROOT and, on success,
