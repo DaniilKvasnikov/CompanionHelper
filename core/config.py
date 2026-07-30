@@ -85,6 +85,13 @@ TOUCH_OSC_HOST = "127.0.0.1"
 TOUCH_OSC_PORT = 7777
 TOUCH_OSC_ADDRESS = "/file"   # OSC address the filename is sent to
 
+# --- Develop tab (pull latest changes + restart the server) ---------------
+# A "Develop" tab whose button runs `git pull` in PROJECT_ROOT and, on success,
+# restarts this process so the new code takes effect. See core/develop.py.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+GIT_PULL_TIMEOUT = 60.0    # seconds, for the git pull
+RESTART_DELAY = 1.5        # seconds after a pull before restarting (lets the deck render)
+
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
     Kind.MENU:     ("#12233b", "#ffffff"),  # submenu / folder
