@@ -74,6 +74,17 @@ AOTO_HTTP_TIMEOUT = 4.0      # seconds, per controller request
 AOTO_POLL_INTERVAL = 10.0    # seconds between status polls
 AOTO_WORKERS = 16            # parallel requests within a group
 
+# --- Touch (TouchDesigner control over OSC) -------------------------------
+# A "Touch" tab. Groups are files in TOUCH_GROUPS_DIR (one "label = filename"
+# per line); pressing a button fires ONE OSC message to TouchDesigner at
+# TOUCH_OSC_HOST:TOUCH_OSC_PORT, address TOUCH_OSC_ADDRESS, with the button's
+# filename as a string argument. See core/touch.py.
+TOUCH_DIR = Path(__file__).resolve().parent.parent / "touch"
+TOUCH_GROUPS_DIR = TOUCH_DIR / "groups"
+TOUCH_OSC_HOST = "127.0.0.1"
+TOUCH_OSC_PORT = 7777
+TOUCH_OSC_ADDRESS = "/file"   # OSC address the filename is sent to
+
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
     Kind.MENU:     ("#12233b", "#ffffff"),  # submenu / folder

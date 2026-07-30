@@ -1,0 +1,4 @@
+# One button per line, "label = filename". Text after '#' is a comment.
+# See 01_стена.txt for the format. Replace these with your real clips.
+Звёзды = stars.mov
+Волны = waves.mov

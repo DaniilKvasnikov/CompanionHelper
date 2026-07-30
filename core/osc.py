@@ -47,11 +47,19 @@ def _message(address: str, *args) -> bytes:
 
 
 def send(address: str, *args) -> None:
-    """Fire an OSC message. Fails soft: logs and continues on error."""
+    """Fire an OSC message to Companion. Fails soft: logs and continues on error."""
     try:
         _sock.sendto(_message(address, *args), _addr)
     except OSError as e:
         log.warning("osc %s failed: %s", address, e)
+
+
+def send_to(host: str, port: int, address: str, *args) -> None:
+    """Fire an OSC message to an arbitrary destination (e.g. TouchDesigner)."""
+    try:
+        _sock.sendto(_message(address, *args), (host, port))
+    except OSError as e:
+        log.warning("osc %s -> %s:%s failed: %s", address, host, port, e)
 
 
 def set_text(page, row, col, text: str) -> None:
