@@ -89,6 +89,16 @@ TOUCH_OSC_ADDRESS = "/file"   # default OSC address when a group sets no @addres
 # message to an address named after them, e.g. "file" -> /file. See core/touch.py.
 TOUCH_COMMANDS = ("file", "base", "fps")
 
+# --- FreeFileSync sync jobs (a "Sync" tab) --------------------------------
+# Each job is a (label, path-to-.ffs_batch) pair shown as a button; pressing it
+# runs `FFS_EXE <path>` and shows the result. See core/ffs.py.
+FFS_EXE = r"C:\Program Files\FreeFileSync\FreeFileSync.exe"
+FFS_TIMEOUT = 600.0        # seconds; a sync can take a while
+FFS_JOBS = [
+    # ("Фото", r"D:\sync\photo.ffs_batch"),
+    # ("Документы", r"D:\sync\docs.ffs_batch"),
+]
+
 # --- Develop tab (pull latest changes + restart the server) ---------------
 # A "Develop" tab whose button runs `git pull` in PROJECT_ROOT and, on success,
 # restarts this process so the new code takes effect. See core/develop.py.
