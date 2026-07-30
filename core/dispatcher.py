@@ -82,6 +82,10 @@ def handle_press(page: str, row: int, col: int) -> None:
             st.path.pop()
             st.page_index = 0
             nav = "render"
+        elif kind == Kind.HOME and st.path:
+            st.path.clear()
+            st.page_index = 0
+            nav = "enter"       # land on the root menu, refresh its feedback
         elif kind == Kind.PREV:
             st.page_index = max(0, st.page_index - 1)
             nav = "render"

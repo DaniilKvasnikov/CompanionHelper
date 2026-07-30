@@ -4,6 +4,7 @@ from pathlib import Path
 from core.constants import Kind
 from core.layout import (
     BACK_CELL,
+    HOME_CELL,
     NEXT_CELL,
     PER_PAGE,
     PREV_CELL,
@@ -35,14 +36,16 @@ def test_kind_detection_by_node_type():
     assert cells[(0, 3)].kind == Kind.COMMAND
 
 
-def test_no_back_button_at_root():
+def test_no_back_or_home_button_at_root():
     cells, _, _ = build_layout(menu([cmd("c")]), depth=0, page_index=0)
     assert BACK_CELL not in cells
+    assert HOME_CELL not in cells
 
 
-def test_back_button_when_nested():
+def test_back_and_home_buttons_when_nested():
     cells, _, _ = build_layout(menu([cmd("c")]), depth=1, page_index=0)
     assert cells[BACK_CELL].kind == Kind.BACK
+    assert cells[HOME_CELL].kind == Kind.HOME
 
 
 def test_pagination_prev_next_and_counts():

@@ -70,6 +70,21 @@ def test_provider_menu_navigation_two_levels(quiet, monkeypatch):
     assert state.get_state("1").path == ["dyn", "item"]
 
 
+def test_home_button_jumps_to_root(quiet, monkeypatch):
+    from core.layout import HOME_CELL
+
+    deep = MenuNode("deep", None, "Deep", children=[CommandNode("c.py", Path("c.py"), "C")])
+    root = MenuNode("", None, "", children=[MenuNode("sub", None, "Sub", children=[deep])])
+    set_tree(monkeypatch, root)
+
+    dispatcher.handle_press("1", 0, 0)          # into sub
+    dispatcher.handle_press("1", 0, 0)          # into deep
+    assert state.get_state("1").path == ["sub", "deep"]
+    dispatcher.handle_press("1", *HOME_CELL)     # Home -> back to root
+    assert state.get_state("1").path == []
+    assert state.get_state("1").page_index == 0
+
+
 def test_prev_next_paging(quiet, monkeypatch):
     from core.layout import NEXT_CELL, PER_PAGE, PREV_CELL
 

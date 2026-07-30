@@ -1,8 +1,8 @@
 """Map a menu's children onto the deck grid.
 
 Content fills rows 0..NAV_ROW-1 in reading order. The bottom row (NAV_ROW) is
-reserved for navigation: Back on the left, and Prev/Next on the right when the
-menu has more children than fit on one page.
+reserved for navigation: Back and Home on the left, and Prev/Next on the right
+when the menu has more children than fit on one page.
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ CONTENT_CELLS = [(r, c) for r in range(NAV_ROW) for c in range(GRID_COLS)]
 PER_PAGE = len(CONTENT_CELLS)
 
 BACK_CELL = (NAV_ROW, 0)
+HOME_CELL = (NAV_ROW, 1)
 PREV_CELL = (NAV_ROW, GRID_COLS - 2)
 NEXT_CELL = (NAV_ROW, GRID_COLS - 1)
 
@@ -61,6 +62,7 @@ def build_layout(menu: MenuNode, depth: int, page_index: int):
 
     if depth > 0:
         cells[BACK_CELL] = Slot(kind=Kind.BACK, label="Back")
+        cells[HOME_CELL] = Slot(kind=Kind.HOME, label="Home")
     if page_index > 0:
         cells[PREV_CELL] = Slot(kind=Kind.PREV, label="< Prev")
     if page_index < pages - 1:

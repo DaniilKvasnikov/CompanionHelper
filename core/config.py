@@ -99,6 +99,7 @@ COLORS = {
     Kind.COMMAND:  ("#2b2b2b", "#ffffff"),  # script button
     Kind.FEEDBACK: ("#0f3d2e", "#8affc1"),  # script button with live output
     Kind.BACK:     ("#4a1414", "#ffb4b4"),  # navigate up
+    Kind.HOME:     ("#153a3a", "#a9f0e6"),  # jump to the root menu
     Kind.NAV:      ("#22303f", "#cfe3ff"),  # paging (prev / next)
     Kind.EMPTY:    ("#000000", "#000000"),  # cleared cell
 }

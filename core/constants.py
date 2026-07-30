@@ -12,6 +12,7 @@ class Kind:
     COMMAND = "command"    # script or action button
     FEEDBACK = "feedback"  # script button with live output
     BACK = "back"          # navigate up
+    HOME = "home"          # jump to the root menu
     PREV = "prev"          # previous page
     NEXT = "next"          # next page
     NAV = "nav"            # paging color
