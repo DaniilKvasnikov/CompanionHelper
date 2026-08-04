@@ -82,6 +82,8 @@ python main.py                    # serves on 0.0.0.0:7878
 
 All tunables — ports, PDQ paths, timeouts, colors, intervals, grid size — live in [`core/config.py`](core/config.py).
 
+To have the server start automatically **elevated** at logon on the deployment machine, see [`deploy/`](deploy/) — a Task Scheduler installer (`install-autostart.bat`).
+
 ## Tests
 
 ```bash
