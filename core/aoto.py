@@ -30,10 +30,17 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 from .config import (
+    AOTO_BRIGHTNESS_LIMIT_DEFAULT,
+    AOTO_BRIGHTNESS_LIMITS,
+    AOTO_BRIGHTNESS_MIN,
+    AOTO_BRIGHTNESS_STATUS_LABEL,
+    AOTO_BRIGHTNESS_STEP,
     AOTO_COMMANDS_FILE,
     AOTO_GROUPS_DIR,
     AOTO_HTTP_TIMEOUT,
     AOTO_POLL_INTERVAL,
+    AOTO_SET_BRIGHTNESS_KEY,
+    AOTO_SET_BRIGHTNESS_PATH,
     AOTO_WORKERS,
     COLORS,
 )
@@ -47,6 +54,7 @@ _groups: dict[str, list[str]] = {}          # group label -> controller addresse
 _commands: list[dict] = []                  # command defs from commands.json
 # (group, command label) -> per-controller results [(addr, ok, value), ...]
 _status: dict[tuple[str, str], list[tuple[str, bool, object]]] = {}
+_step: int = AOTO_BRIGHTNESS_STEP           # AOTO-wide brightness step (×2 / ÷2 buttons)
 
 
 # --- catalog (read from disk) ---------------------------------------------
@@ -318,6 +326,11 @@ def _group_commands(node) -> list:
                 name=label, label=display, kind=Kind.COMMAND, after=After.RERENDER,
                 on_press=lambda g=group, c=cmd: _press_status(g, c), color_fn=_green,
             ))
+    if _command_by_label(AOTO_BRIGHTNESS_STATUS_LABEL):   # brightness control submenu
+        out.append(MenuNode(
+            name="__brightness__", path=None, label="Управление\nяркостью",
+            provider=_brightness_children, context={"group": group},
+        ))
     return out
 
 
@@ -341,3 +354,85 @@ def _press_status(group: str, cmd: dict) -> str:
     with _lock:
         _status[(group, cmd["label"])] = results
     return ""   # After.RERENDER redraws the label(s) from the cache
+
+
+# --- brightness control ----------------------------------------------------
+def get_step() -> int:
+    with _lock:
+        return _step
+
+
+def _scale_step(factor: float) -> str:
+    """Double / halve the AOTO-wide step (floored at 1)."""
+    global _step
+    with _lock:
+        _step = max(1, int(_step * factor))
+    return ""   # After.RERENDER redraws the step label
+
+
+def brightness_limit(group: str) -> int:
+    """Per-group brightness ceiling, or the default when the group has none."""
+    return AOTO_BRIGHTNESS_LIMITS.get(group, AOTO_BRIGHTNESS_LIMIT_DEFAULT)
+
+
+def _set_brightness_cmd(value: int) -> dict:
+    return {"method": "POST", "path": AOTO_SET_BRIGHTNESS_PATH,
+            "body": {AOTO_SET_BRIGHTNESS_KEY: value}}
+
+
+def _adjust_brightness(group: str, sign: int) -> str:
+    """Read each controller's brightness, shift by ±step, clamp, and write it back."""
+    read_cmd = _command_by_label(AOTO_BRIGHTNESS_STATUS_LABEL)
+    addrs = addresses(group)
+    if read_cmd is None or not addrs:
+        return ""
+    step, limit = get_step(), brightness_limit(group)
+
+    def adjust_one(addr: str) -> None:
+        ok, cur = _request(addr, read_cmd)
+        if not ok or not isinstance(cur, (int, float)) or isinstance(cur, bool):
+            return                                   # unreachable / non-numeric -> skip
+        target = max(AOTO_BRIGHTNESS_MIN, min(limit, int(cur) + sign * step))
+        _request(addr, _set_brightness_cmd(target))
+
+    with ThreadPoolExecutor(max_workers=AOTO_WORKERS) as ex:
+        list(ex.map(adjust_one, addrs))
+    _press_status(group, read_cmd)                   # refresh the shown value
+    return ""   # After.RERENDER
+
+
+def _brightness_children(node) -> list:
+    """The "Управление яркостью" submenu: current value, +/-, and the step controls."""
+    group = node.context["group"]
+    step = get_step()
+    status = _command_by_label(AOTO_BRIGHTNESS_STATUS_LABEL)
+    out: list = []
+    if status:                                       # current brightness; press re-polls
+        results = _cached_results(group, status["label"])
+        text = _status_text(status, results) if results else ""
+        out.append(ActionNode(
+            name="brightness", label=f"Яркость\n{text}" if text else "Яркость",
+            kind=Kind.COMMAND, after=After.RERENDER, color_fn=_green,
+            on_press=lambda g=group, c=status: _press_status(g, c),
+        ))
+    out.append(ActionNode(
+        name="down", label="Темнее", kind=Kind.COMMAND, after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness(g, -1),
+    ))
+    out.append(ActionNode(
+        name="up", label="Ярче", kind=Kind.COMMAND, after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness(g, +1),
+    ))
+    out.append(ActionNode(
+        name="step-half", label="Шаг ÷2", kind=Kind.COMMAND, after=After.RERENDER,
+        on_press=lambda: _scale_step(0.5),
+    ))
+    out.append(ActionNode(
+        name="step", label=f"Шаг\n{step}", kind=Kind.COMMAND, after=After.RERENDER,
+        on_press=lambda: "",                         # info only; just re-renders
+    ))
+    out.append(ActionNode(
+        name="step-double", label="Шаг ×2", kind=Kind.COMMAND, after=After.RERENDER,
+        on_press=lambda: _scale_step(2),
+    ))
+    return out

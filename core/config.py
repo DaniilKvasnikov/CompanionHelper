@@ -74,6 +74,24 @@ AOTO_HTTP_TIMEOUT = 4.0      # seconds, per controller request
 AOTO_POLL_INTERVAL = 10.0    # seconds between status polls
 AOTO_WORKERS = 16            # parallel requests within a group
 
+# --- Aoto brightness control (a "Управление яркостью" submenu per group) ---
+# Added to each AOTO group when the status command named below exists (it also
+# READS the current brightness). The +/- buttons read each controller's current
+# brightness via that status command, shift it by the current step, clamp to
+# [AOTO_BRIGHTNESS_MIN, per-group limit], and write it back per controller via
+# AOTO_SET_BRIGHTNESS_PATH (body {AOTO_SET_BRIGHTNESS_KEY: value}). The ×2 / ÷2
+# buttons change the (AOTO-wide) step. See core/aoto.py.
+AOTO_BRIGHTNESS_STATUS_LABEL = "Яркость"   # the status command that reads brightness
+AOTO_SET_BRIGHTNESS_PATH = "/ng_ctrl_sys/globalSettings/setBrightness"
+AOTO_SET_BRIGHTNESS_KEY = "brightness"     # POST body is {this key: target value}
+AOTO_BRIGHTNESS_STEP = 50                  # initial step; the ×2 / ÷2 buttons change it
+AOTO_BRIGHTNESS_MIN = 0                    # floor when stepping down
+AOTO_BRIGHTNESS_LIMIT_DEFAULT = 1500       # max brightness for a group with no override below
+AOTO_BRIGHTNESS_LIMITS = {                 # per-group ceiling; key = group label
+    # "стена":   1500,
+    # "потолок": 1000,
+}
+
 # --- Touch (TouchDesigner control over OSC) -------------------------------
 # A "Touch" tab. Groups are files in TOUCH_GROUPS_DIR (one "label = filename"
 # per line); pressing a button fires ONE OSC message to TouchDesigner at

@@ -239,3 +239,97 @@ def test_apply_tracked_applies_then_repolls_state(catalog, monkeypatch):
                         lambda addr, cmd: (True, 0) if cmd is tracker else (True, None))
     aoto._apply_tracked("Зал1", vhod)
     assert aoto._group_agreed_value("Зал1", "screen-status") == 0   # re-polled into cache
+
+
+# --- brightness control ---------------------------------------------------
+@pytest.fixture
+def bright(monkeypatch):
+    """A group + the 'Яркость' status command (which the control menu reads)."""
+    groups = {"Зал1": ["10.0.0.1:8080", "10.0.0.2:8080"]}
+    commands = [{"label": "Яркость", "method": "POST", "path": "/get", "body": {},
+                 "response_field": "obj.brightness"}]
+    monkeypatch.setattr(aoto, "_groups", dict(groups))
+    monkeypatch.setattr(aoto, "_commands", list(commands))
+    monkeypatch.setattr(aoto, "_status", {})
+    monkeypatch.setattr(aoto, "_step", 50)
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMIT_DEFAULT", 1500)
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_MIN", 0)
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMITS", {})
+    return {"groups": groups, "commands": commands}
+
+
+def test_brightness_limit_default_and_override(monkeypatch):
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMIT_DEFAULT", 1500)
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMITS", {"Зал1": 800})
+    assert aoto.brightness_limit("Зал1") == 800     # per-group override
+    assert aoto.brightness_limit("Зал2") == 1500    # falls back to default
+
+
+def test_scale_step_double_halve_and_floor(monkeypatch):
+    monkeypatch.setattr(aoto, "_step", 50)
+    aoto._scale_step(2);   assert aoto.get_step() == 100
+    aoto._scale_step(0.5); assert aoto.get_step() == 50
+    monkeypatch.setattr(aoto, "_step", 1)
+    aoto._scale_step(0.5); assert aoto.get_step() == 1     # never below 1
+
+
+def test_adjust_brightness_reads_shifts_and_clamps_to_limit(bright, monkeypatch):
+    writes = {}
+
+    def fake_request(addr, cmd):
+        if cmd.get("response_field"):                       # a read
+            return (True, 100 if addr.endswith(".1:8080") else 1490)
+        writes[addr] = cmd["body"]["brightness"]            # a write
+        return (True, None)
+
+    monkeypatch.setattr(aoto, "_request", fake_request)
+    aoto._adjust_brightness("Зал1", +1)                     # step 50, limit 1500
+    assert writes["10.0.0.1:8080"] == 150                   # 100 + 50
+    assert writes["10.0.0.2:8080"] == 1500                  # 1490 + 50 -> clamped to limit
+
+
+def test_adjust_brightness_clamps_to_min(bright, monkeypatch):
+    writes = {}
+
+    def fake_request(addr, cmd):
+        if cmd.get("response_field"):
+            return (True, 30)
+        writes[addr] = cmd["body"]["brightness"]
+        return (True, None)
+
+    monkeypatch.setattr(aoto, "_request", fake_request)
+    aoto._adjust_brightness("Зал1", -1)                     # 30 - 50 -> floored at 0
+    assert set(writes.values()) == {0}
+
+
+def test_group_commands_adds_brightness_submenu(bright):
+    node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
+    btns = aoto._group_commands(node)
+    assert isinstance(btns[-1], MenuNode) and btns[-1].name == "__brightness__"
+    assert btns[-1].context == {"group": "Зал1"}
+
+
+def test_no_brightness_submenu_without_status_command(catalog):
+    # catalog's commands use labels "Блэкаут"/"Статус", not "Яркость"
+    node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
+    assert not any(getattr(b, "name", "") == "__brightness__"
+                   for b in aoto._group_commands(node))
+
+
+def test_brightness_children_layout_and_step_label(bright):
+    node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
+    kids = aoto._brightness_children(node)
+    assert [k.name for k in kids] == ["brightness", "down", "up",
+                                      "step-half", "step", "step-double"]
+    assert next(k for k in kids if k.name == "step").label == "Шаг\n50"
+    next(k for k in kids if k.name == "step-half").on_press()   # ÷2
+    assert aoto.get_step() == 25
+    step_btn = next(k for k in aoto._brightness_children(node) if k.name == "step")
+    assert step_btn.label == "Шаг\n25"                          # re-render shows new step
+
+
+def test_brightness_status_button_shows_cached_value(bright, monkeypatch):
+    monkeypatch.setattr(aoto, "_request", lambda a, c: (True, 227))
+    node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
+    aoto._brightness_children(node)[0].on_press()              # re-poll -> cache
+    assert aoto._brightness_children(node)[0].label == "Яркость\n227"
