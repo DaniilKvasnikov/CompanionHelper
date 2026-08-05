@@ -333,3 +333,58 @@ def test_brightness_status_button_shows_cached_value(bright, monkeypatch):
     node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
     aoto._brightness_children(node)[0].on_press()              # re-poll -> cache
     assert aoto._brightness_children(node)[0].label == "Яркость\n227"
+
+
+# --- Dynamic Range (HDR) control ------------------------------------------
+@pytest.fixture
+def hdr(monkeypatch):
+    """A group + the 'HDR' status command whose presence enables the DR submenu."""
+    groups = {"Зал1": ["10.0.0.1:8080", "10.0.0.2:8080"]}
+    commands = [{"label": "HDR", "method": "POST", "path": "/get", "body": {},
+                 "response_field": "obj.hdrSetting"}]
+    monkeypatch.setattr(aoto, "_groups", dict(groups))
+    monkeypatch.setattr(aoto, "_commands", list(commands))
+    monkeypatch.setattr(aoto, "_status", {})
+    monkeypatch.setattr(aoto, "AOTO_HDR_MODES", [("SDR", 2), ("HLG", 3), ("PQ", 4)])
+    monkeypatch.setattr(aoto, "AOTO_SET_HDR_PATH", "/ng_ctrl_sys/globalSettings/setHDR")
+    monkeypatch.setattr(aoto, "AOTO_SET_HDR_KEY", "hdrSetting")
+    monkeypatch.setattr(aoto, "AOTO_SET_HDR_EXTRA", {"maximumBrightness": 10000, "coefficient": 1})
+    return {"groups": groups, "commands": commands}
+
+
+def test_group_commands_adds_hdr_submenu(hdr):
+    node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
+    btns = aoto._group_commands(node)
+    menu = next(b for b in btns if getattr(b, "name", "") == "__hdr__")
+    assert isinstance(menu, MenuNode) and menu.context == {"group": "Зал1"}
+
+
+def test_no_hdr_submenu_without_status_command(catalog):
+    # catalog's commands are "Блэкаут"/"Статус", not "HDR"
+    node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
+    assert not any(getattr(b, "name", "") == "__hdr__"
+                   for b in aoto._group_commands(node))
+
+
+def test_hdr_children_are_mode_setters(hdr):
+    node = MenuNode("__hdr__", None, "", context={"group": "Зал1"})
+    kids = aoto._hdr_children(node)
+    assert [k.name for k in kids] == ["SDR", "HLG", "PQ"]
+    assert all(isinstance(k, ActionNode) and k.after == After.TEXT for k in kids)
+
+
+def test_hdr_button_posts_mode_value_to_every_controller(hdr, monkeypatch):
+    sent = []
+
+    def fake_request(addr, cmd):
+        sent.append((addr, cmd["path"], dict(cmd["body"])))
+        return (True, None)
+
+    monkeypatch.setattr(aoto, "_request", fake_request)
+    node = MenuNode("__hdr__", None, "", context={"group": "Зал1"})
+    hlg = next(k for k in aoto._hdr_children(node) if k.name == "HLG")
+    assert hlg.on_press() == "OK 2/2"
+    assert sorted(a for a, _p, _b in sent) == ["10.0.0.1:8080", "10.0.0.2:8080"]
+    for _a, path, body in sent:
+        assert path == "/ng_ctrl_sys/globalSettings/setHDR"
+        assert body == {"hdrSetting": 3, "maximumBrightness": 10000, "coefficient": 1}

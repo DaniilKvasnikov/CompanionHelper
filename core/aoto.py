@@ -37,10 +37,15 @@ from .config import (
     AOTO_BRIGHTNESS_STEP,
     AOTO_COMMANDS_FILE,
     AOTO_GROUPS_DIR,
+    AOTO_HDR_MODES,
+    AOTO_HDR_STATUS_LABEL,
     AOTO_HTTP_TIMEOUT,
     AOTO_POLL_INTERVAL,
     AOTO_SET_BRIGHTNESS_KEY,
     AOTO_SET_BRIGHTNESS_PATH,
+    AOTO_SET_HDR_EXTRA,
+    AOTO_SET_HDR_KEY,
+    AOTO_SET_HDR_PATH,
     AOTO_WORKERS,
     COLORS,
 )
@@ -331,6 +336,11 @@ def _group_commands(node) -> list:
             name="__brightness__", path=None, label="Управление\nяркостью",
             provider=_brightness_children, context={"group": group},
         ))
+    if _command_by_label(AOTO_HDR_STATUS_LABEL):          # dynamic-range control submenu
+        out.append(MenuNode(
+            name="__hdr__", path=None, label="Dynamic\nRange",
+            provider=_hdr_children, context={"group": group},
+        ))
     return out
 
 
@@ -436,3 +446,21 @@ def _brightness_children(node) -> list:
         on_press=lambda: _scale_step(2),
     ))
     return out
+
+
+# --- Dynamic Range (HDR) control -------------------------------------------
+def _set_hdr_cmd(value: int) -> dict:
+    return {"method": "POST", "path": AOTO_SET_HDR_PATH,
+            "body": {AOTO_SET_HDR_KEY: value, **AOTO_SET_HDR_EXTRA}}
+
+
+def _hdr_children(node) -> list:
+    """The "Dynamic Range" submenu: one setter button per mode (SDR/HLG/PQ)."""
+    group = node.context["group"]
+    return [
+        ActionNode(
+            name=label, label=label, kind=Kind.COMMAND, after=After.TEXT,
+            on_press=lambda g=group, v=value: run_group(g, _set_hdr_cmd(v)),
+        )
+        for label, value in AOTO_HDR_MODES
+    ]

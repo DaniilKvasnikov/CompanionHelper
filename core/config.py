@@ -92,6 +92,22 @@ AOTO_BRIGHTNESS_LIMITS = {                 # per-group ceiling; key = group labe
     # "потолок": 1000,
 }
 
+# --- Aoto Dynamic Range / HDR control (a "Dynamic Range" submenu per group) ---
+# Added to each AOTO group when the status command named below exists. Each mode
+# button POSTs AOTO_SET_HDR_PATH with body {AOTO_SET_HDR_KEY: value,
+# **AOTO_SET_HDR_EXTRA}. NOTE: these hdrSetting *write* values (SDR=2/HLG=3/PQ=4)
+# differ from the *read* scale in commands.json (SDR=1/HLG=2/PQ=3) -- verify both
+# against your firmware. See core/aoto.py.
+AOTO_HDR_STATUS_LABEL = "HDR"   # the status command whose presence enables the submenu
+AOTO_SET_HDR_PATH = "/ng_ctrl_sys/globalSettings/setHDR"
+AOTO_SET_HDR_KEY = "hdrSetting"                                  # the varied body field
+AOTO_SET_HDR_EXTRA = {"maximumBrightness": 10000, "coefficient": 1}  # fixed body fields
+AOTO_HDR_MODES = [              # (button label, hdrSetting value)
+    ("SDR", 2),
+    ("HLG", 3),
+    ("PQ", 4),
+]
+
 # --- Touch (TouchDesigner control over OSC) -------------------------------
 # A "Touch" tab. Groups are files in TOUCH_GROUPS_DIR (one "label = filename"
 # per line); pressing a button fires ONE OSC message to TouchDesigner at
