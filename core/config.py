@@ -123,6 +123,19 @@ TOUCH_OSC_ADDRESS = "/file"   # default OSC address when a group sets no @addres
 # message to an address named after them, e.g. "file" -> /file. See core/touch.py.
 TOUCH_COMMANDS = ("file", "base", "fps")
 
+# --- Generic OSC buttons (an "OSC" tab) -----------------------------------
+# An "OSC" tab for buttons that fire an arbitrary OSC message. Groups are files
+# in OSC_BUTTONS_GROUPS_DIR, one "label = /address arg arg" per line, so each
+# button carries its own address and arguments (unlike the Touch tab, where the
+# address belongs to the group and the argument is always a filename). A group
+# may retarget with "@host =" / "@port =" lines; otherwise it uses the defaults
+# below. The defaults point at oscctl (github.com/DaniilKvasnikov/oscctl), whose
+# addresses are operator path + parameter name. See core/osc_buttons.py.
+OSC_BUTTONS_DIR = Path(__file__).resolve().parent.parent / "osc"
+OSC_BUTTONS_GROUPS_DIR = OSC_BUTTONS_DIR / "groups"
+OSC_BUTTONS_HOST = "127.0.0.1"
+OSC_BUTTONS_PORT = 7000
+
 # --- FreeFileSync sync jobs (a "Sync" tab) --------------------------------
 # Each job is a (label, path-to-.ffs_batch) pair shown as a button; pressing it
 # runs `FFS_EXE <path>` and shows the result. See core/ffs.py.
