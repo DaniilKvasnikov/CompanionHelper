@@ -1,5 +1,5 @@
 {
-  "_readme": "Каталог параметров для захвата пресетов AOTO. Список растёт правкой этого файла - без кода. Каждый параметр: name (подпись), set {path, key, method?, extra?} - как POST'ить значение, get {path, field, body?, method?} - как прочитать текущее (поле через точку; body - если чтению нужно тело, напр. {id:1}). Необязательный map {'прочитанное': 'записываемое'} переводит значения чтения в значения записи (см. HDR: чтение SDR=1/HLG=2/PQ=3, запись SDR=2/HLG=3/PQ=4). ScreenTest: включение теста - отдельный параметр (testPicEn); RGB-параметры пишут только свой цвет (setTestImage мержит по ключам) и НЕ трогают testPicEn. ColorTemperature пишется через setColorTemple (так в прошивке). Вход/Блэкаут/Фриз не включены: чтения текущего screen-status на этой прошивке нет (getScreenStatus - 404).",
+  "_readme": "Каталог параметров для захвата пресетов AOTO. Список растёт правкой этого файла - без кода. Каждый параметр: name (подпись), set {path, key, method?, extra?} - как POST'ить значение, get {path, field, body?, method?} - как прочитать текущее (поле через точку; body - если чтению нужно тело, напр. {id:1}). Необязательный map {'прочитанное': 'записываемое'} переводит значения чтения в значения записи (см. HDR: чтение SDR=1/HLG=2/PQ=3, запись SDR=2/HLG=3/PQ=4). ScreenTest: включение теста - отдельный параметр (testPicEn); RGB-параметры пишут только свой цвет (setTestImage мержит по ключам) и НЕ трогают testPicEn. ColorTemperature пишется через setColorTemple (так в прошивке). Параметры Гамма/Scal/DarkMagic/ColorSpaceEn проверены на устройстве (set+readback+restore). См. AOTO_API_GUIDE.md.",
   "parameters": [
     {
       "name": "Яркость",
@@ -7,9 +7,29 @@
       "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.brightness" }
     },
     {
+      "name": "Гамма",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setGammaCoefficient", "key": "gammaCoefficient" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.gammaCoefficient" }
+    },
+    {
       "name": "ColorTemperature",
       "set": { "path": "/ng_ctrl_sys/globalSettings/setColorTemple", "key": "colorTemperature" },
       "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.colorTemperature" }
+    },
+    {
+      "name": "Scal",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setScal", "key": "scal" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.scal" }
+    },
+    {
+      "name": "DarkMagic",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setDarkMagic", "key": "darkMagic" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.darkMagic" }
+    },
+    {
+      "name": "ColorSpaceEn",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setColorSpaceEn", "key": "colorSpaceEn" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.colorSpaceEn" }
     },
     {
       "name": "ScreenTest",

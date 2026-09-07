@@ -136,6 +136,7 @@ touch/             Touch groups (groups/*.txt, "label = filename" per line)
 pc_aliases.example.txt  template for pc_aliases.txt (see "Machine-local configuration")
 config.local.example.json  template for config.local.json (see "Machine-local configuration")
 PIXELHUE_API_GUIDE.md  PixelHue Q8 API notes: protocol, endpoints, error codes
+AOTO_API_GUIDE.md      Aoto LED-controller API notes (endpoints from the web UI, verified sets)
 tests/             pytest suite
 ```
 
