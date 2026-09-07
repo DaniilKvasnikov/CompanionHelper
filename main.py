@@ -10,7 +10,9 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from core import aoto, config, dispatcher, feedback, pcbrowser, progress, state, touch
+from core import (
+    aoto, config, dispatcher, feedback, osc_buttons, pcbrowser, progress, state, touch,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("main")
@@ -23,6 +25,7 @@ async def lifespan(app: FastAPI):
     pcbrowser.refresh_catalog()
     aoto.refresh()
     touch.refresh()
+    osc_buttons.refresh()
     dispatcher.render_page(config.DEFAULT_PAGE)
     dispatcher.refresh_feedback(config.DEFAULT_PAGE)
     feedback.start_poller(

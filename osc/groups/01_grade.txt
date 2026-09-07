@@ -1,0 +1,25 @@
+# One button per line, "label = /address arg arg". Text after '#' is a comment.
+# The label is shown on the deck; pressing sends ONE OSC message to the group's
+# host:port. Unlike the Touch tab, the address lives on the button, not the
+# group, so one group can drive many different parameters.
+#
+# Arguments are typed by how they parse: 1 is an int, 0.5 a float, anything else
+# a string. Quote to keep spaces together: "две слова". A line with no arguments
+# sends the address alone, which is how you fire a pulse parameter.
+#
+# @host / @port retarget this group; without them it uses OSC_BUTTONS_HOST and
+# OSC_BUTTONS_PORT from core/config.py.
+#
+# The filename without .txt is the group's label; prefix "NN_" to order it
+# (stripped from the label).
+#
+# These examples target oscctl (github.com/DaniilKvasnikov/oscctl), where the
+# address is an operator path plus a parameter name. Replace them with yours.
+@host = 127.0.0.1
+@port = 7000
+
+Байпас вкл = /project1/grade/Bypass 1
+Байпас выкл = /project1/grade/Bypass 0
+sRGB = /project1/grade/Workingspace 1
+Scene-linear = /project1/grade/Workingspace 2
+Матрица = /project1/grade/Applymatrix 1
