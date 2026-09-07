@@ -183,7 +183,10 @@ def start(on_update) -> None:
 
     def loop():
         while True:
-            _ping_sweep()
+            try:
+                _ping_sweep()
+            except Exception as e:  # noqa: BLE001 - never let the pinger die
+                log.warning("ping sweep failed: %s", e)
             try:
                 on_update()
             except Exception as e:  # noqa: BLE001
