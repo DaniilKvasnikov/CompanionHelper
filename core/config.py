@@ -118,6 +118,26 @@ AOTO_HDR_MODES = [              # (button label, hdrSetting value)
     ("PQ", 4),
 ]
 
+# --- PixelHue Q8 LED-processor control (an "PixelHue" tab over HTTP) -------
+# One device (a Q8/P10/P20/P80 node). Auth is a JWT (HS256, payload {SN},
+# secret = startTime from node/open-detail) rebuilt automatically after a
+# device reboot (HTTP 401); nothing to configure. All commands go through the
+# /unico/v1 namespace (a superset: the documented /pixelhue/v1 404s on
+# layers/window|zorder). Screens are read from the device (MVR/multi-viewer
+# screens -- screenIdObj.type in PIXELHUE_SKIP_SCREEN_TYPES -- are dropped);
+# per-screen Take/Cut/Freeze/FTB buttons plus global FTB/Freeze toggles and a
+# preset list are built from the caches a background poller keeps fresh.
+# See core/pixelhue.py and PIXELHUE_API_GUIDE.md.
+PIXELHUE_HOST = "192.168.200.161"   # node address (override per machine in config.local.json)
+PIXELHUE_PORT = 8088
+PIXELHUE_NODE_ID = 1                # nodeId for node/open-detail + node/detail
+PIXELHUE_TIMEOUT = 5.0              # seconds, per HTTP request
+PIXELHUE_POLL_INTERVAL = 10.0       # seconds between node/screen/preset polls
+PIXELHUE_SKIP_SCREEN_TYPES = (8,)   # screens to hide: 8 = MVR (multi-viewer); real outputs are type 2
+PIXELHUE_TAKE_TIME_MS = 500         # Take / preset-apply transition fade (ms); Cut is instant
+PIXELHUE_FTB_TIME_MS = 500          # FTB fade time (ms)
+PIXELHUE_PRESET_TARGET_REGION = 2   # where presets load: 2 = program, 4 = preview
+
 # --- Touch (TouchDesigner control over OSC) -------------------------------
 # A "Touch" tab. Groups are files in TOUCH_GROUPS_DIR (one "label = filename"
 # per line); pressing a button fires ONE OSC message to TouchDesigner at

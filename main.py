@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from core import (
-    aoto, config, dispatcher, feedback, osc_buttons, pcbrowser, progress, state, touch,
+    aoto, config, dispatcher, feedback, osc_buttons, pcbrowser, pixelhue, progress, state, touch,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     )
     pcbrowser.start(dispatcher.render_all_pages)
     aoto.start(dispatcher.render_all_pages)    # poll Aoto status commands
+    pixelhue.start(dispatcher.render_all_pages)  # poll PixelHue node/screens/presets
     progress.start(config.FEEDBACK_INTERVAL)  # tick the countdown once a second
     yield
 

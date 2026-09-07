@@ -13,15 +13,16 @@ def load_tree(base: Path = MENUS_DIR) -> MenuNode:
     if base.is_dir():
         _fill(root)
     try:
-        from . import aoto, develop, ffs, osc_buttons, pcbrowser, pdqmenu, touch  # dynamic menus attach here
+        from . import aoto, develop, ffs, osc_buttons, pcbrowser, pdqmenu, pixelhue, touch  # dynamic menus attach here
 
-        pcbrowser.attach(root)   # "ПК": one host at a time
-        pdqmenu.attach(root)     # "PDQ": batch deploy to the active list
-        aoto.attach(root)        # "AOTO": HTTP control of LED-processor groups
-        touch.attach(root)       # "Touch": OSC file triggers to TouchDesigner
-        osc_buttons.attach(root) # "OSC": arbitrary OSC messages as buttons
-        ffs.attach(root)         # "Sync": run FreeFileSync batch jobs
-        develop.attach(root)     # "Develop": git pull + restart
+        pcbrowser.attach(root)    # "ПК": one host at a time
+        pdqmenu.attach(root)      # "PDQ": batch deploy to the active list
+        aoto.attach(root)         # "AOTO": HTTP control of LED-processor groups
+        touch.attach(root)        # "Touch": OSC file triggers to TouchDesigner
+        osc_buttons.attach(root)  # "OSC": arbitrary OSC messages as buttons
+        pixelhue.attach(root)     # "PixelHue": HTTP control of a PixelHue node
+        ffs.attach(root)          # "Sync": run FreeFileSync batch jobs
+        develop.attach(root)      # "Develop": git pull + restart
     except Exception as e:  # never let a dynamic menu break the static tree
         logging.getLogger("loader").warning("dynamic menu attach failed: %s", e)
     return root

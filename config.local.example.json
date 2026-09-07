@@ -15,6 +15,10 @@
   "TOUCH_OSC_HOST": "127.0.0.1",
   "TOUCH_OSC_PORT": 7777,
 
+  "_pixelhue": "PixelHue Q8 node on this network (default is the venue device; see PIXELHUE_* in core/config.py and PIXELHUE_API_GUIDE.md).",
+  "PIXELHUE_HOST": "192.168.200.161",
+  "PIXELHUE_PORT": 8088,
+
   "_ffs": "FreeFileSync is per-machine: the exe path and which batch jobs belong to this machine. FFS_JOBS is an array of [label, path-to-.ffs_batch] pairs.",
   "FFS_EXE": "C:/Program Files/FreeFileSync/FreeFileSync.exe",
   "FFS_TIMEOUT": 600,

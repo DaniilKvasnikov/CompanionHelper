@@ -34,6 +34,7 @@ Two transports, opposite directions:
 - **Batch "PDQ" menu** — pick the active list, toggle individual hosts in or out, choose a scope (whole list vs. enabled hosts), then deploy a package to the whole selection in one call.
 - **"AOTO" LED-processor menu** — control [Aoto](https://www.aoto.com/) video processors over HTTP, grouped by file. Pick a group, then a command; the request fires to every controller in the group at once. Commands that return a status (e.g. current display mode) show the value on the button, aggregated across the group and refreshed in the background. Each group also has a **brightness submenu** — the current level plus up/down buttons that step every controller (with a configurable, doublable/halvable step and a per-group ceiling) — and a **Dynamic Range submenu** with one button per HDR mode (SDR/HLG/PQ) that sets it across the whole group.
 - **"Touch" menu** — trigger clips/files in [TouchDesigner](https://derivative.ca/) over OSC, grouped by file. Pick a group, then a button; each press fires one OSC message (default `127.0.0.1:7777`) carrying the button's filename. Each group targets its own OSC address (an `@address = /path` line in the group file), so different groups can drive different things. The tab also has top-level buttons (`file`/`base`/`fps`) that fire a no-argument OSC message to an address named after them.
+- **"PixelHue" menu** — control a PixelHue Q8 (also P10/P20/P80) LED video processor over HTTP (API notes in [`PIXELHUE_API_GUIDE.md`](PIXELHUE_API_GUIDE.md)). One device per install (`PIXELHUE_HOST`/`PORT` in `core/config.py`, per machine via `config.local.json`); auth is a passwordless JWT rebuilt automatically after a device reboot. The tab shows node status, global **FTB**/**Freeze** toggles for all real output screens at once, a per-screen submenu (**Take / Cut / Freeze / FTB**; MVR multi-viewer screens are hidden), and the device's **preset list** (applied to the program region). Screens and presets are polled in the background so the toggle states light up truthfully.
 - **"Sync" menu** — run [FreeFileSync](https://freefilesync.org/) batch jobs from the deck. Configure jobs as `(label, path-to-.ffs_batch)` pairs; each press runs `FreeFileSync.exe` on that batch and shows the result.
 - **"Develop" menu** — a single button that runs `git pull` on the project and restarts the server so the new code takes effect, straight from the deck.
 - **Progress variable** — a Companion custom variable `$(custom:Progress)` filled 0→100 as the next auto-refresh approaches, so an auto-updating page can show a progress bar.
@@ -122,6 +123,7 @@ core/
   pdqmenu.py       the batch "PDQ" deploy menu
   aoto.py          the "AOTO" LED-processor HTTP menu
   touch.py         the "Touch" TouchDesigner OSC menu
+  pixelhue.py      the "PixelHue" Q8 HTTP-control tab (node/screens/presets)
   ffs.py           the "Sync" FreeFileSync batch-job tab
   develop.py       the "Develop" git-pull + restart tab
   progress.py      the $(custom:Progress) refresh progress bar
@@ -132,6 +134,7 @@ aoto/              Aoto groups (groups/*.txt) and commands (commands.json)
 touch/             Touch groups (groups/*.txt, "label = filename" per line)
 pc_aliases.example.txt  template for pc_aliases.txt (see "Machine-local configuration")
 config.local.example.json  template for config.local.json (see "Machine-local configuration")
+PIXELHUE_API_GUIDE.md  PixelHue Q8 API notes: protocol, endpoints, error codes
 tests/             pytest suite
 ```
 
