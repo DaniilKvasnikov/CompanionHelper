@@ -32,7 +32,9 @@ from concurrent.futures import ThreadPoolExecutor
 from .config import (
     AOTO_BRIGHTNESS_LIMIT_DEFAULT,
     AOTO_BRIGHTNESS_LIMITS,
+    AOTO_BRIGHTNESS_MAX_DIRECTIVE,
     AOTO_BRIGHTNESS_MIN,
+    AOTO_BRIGHTNESS_PERCENT,
     AOTO_BRIGHTNESS_STATUS_LABEL,
     AOTO_BRIGHTNESS_STEP,
     AOTO_COMMANDS_FILE,
@@ -56,6 +58,7 @@ log = logging.getLogger("aoto")
 
 _lock = threading.RLock()
 _groups: dict[str, list[str]] = {}          # group label -> controller addresses
+_group_maxima: dict[str, int | None] = {}   # group label -> "@max" from its file (None = unset)
 _commands: list[dict] = []                  # command defs from commands.json
 # (group, command label) -> per-controller results [(addr, ok, value), ...]
 _status: dict[tuple[str, str], list[tuple[str, bool, object]]] = {}
@@ -64,12 +67,13 @@ _step: int = AOTO_BRIGHTNESS_STEP           # AOTO-wide brightness step (×2 / �
 
 # --- catalog (read from disk) ---------------------------------------------
 def refresh() -> None:
-    """Reload groups + commands from disk. Call on start/reload."""
-    global _groups, _commands
-    groups = _load_groups()
+    """Reload groups (+ per-group maxima) and commands from disk. Call on start/reload."""
+    global _groups, _group_maxima, _commands
+    groups, maxima = _load_groups_and_maxima()
     commands = _load_commands()
     with _lock:
         _groups = groups
+        _group_maxima = maxima
         _commands = commands
 
 
@@ -77,24 +81,55 @@ def _group_label(stem: str) -> str:
     return re.sub(r"^\d+[_\-\s]*", "", stem) or stem   # strip NN_ ordering prefix
 
 
-def _load_groups() -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
+def _parse_group_lines(lines: list[str]) -> tuple[list[str], int | None]:
+    """Addresses + the optional '<AOTO_BRIGHTNESS_MAX_DIRECTIVE> = <n>' directive of a group file.
+
+    Lines look like the Touch groups: '#' comments are dropped and a directive
+    line ('@max = 1500') sets that group's brightness ceiling; everything else
+    that is non-empty is a controller address.
+    """
+    key = AOTO_BRIGHTNESS_MAX_DIRECTIVE[1:]            # compare without the '@'
+    addrs: list[str] = []
+    maximum: int | None = None
+    for ln in lines:
+        ln = ln.split("#", 1)[0].strip()
+        if not ln:
+            continue
+        if ln.startswith("@"):
+            name, _, value = ln[1:].partition("=")
+            if name.strip().lower() == key.lower() and value.strip().isdigit():
+                maximum = int(value.strip())
+            continue
+        addrs.append(ln)
+    return addrs, maximum
+
+
+def _load_groups_and_maxima() -> tuple[dict[str, list[str]], dict[str, int | None]]:
+    groups: dict[str, list[str]] = {}
+    maxima: dict[str, int | None] = {}
     try:
         files = sorted(p for p in AOTO_GROUPS_DIR.iterdir() if p.suffix.lower() == ".txt")
     except FileNotFoundError:
-        return out
+        return groups, maxima
     except Exception as e:  # noqa: BLE001
         log.warning("aoto groups dir unreadable: %s", e)
-        return out
+        return groups, maxima
     for p in files:
         try:
             lines = p.read_text(encoding="utf-8").splitlines()
         except Exception as e:  # noqa: BLE001
             log.warning("aoto group %s unreadable: %s", p.name, e)
             continue
-        addrs = [a for a in (ln.split("#", 1)[0].strip() for ln in lines) if a]
-        out[_group_label(p.stem)] = addrs
-    return out
+        addrs, maximum = _parse_group_lines(lines)
+        label = _group_label(p.stem)
+        groups[label] = addrs
+        maxima[label] = maximum
+    return groups, maxima
+
+
+def _load_groups() -> dict[str, list[str]]:
+    """Controller addresses per group (kept for callers/tests that want just the list)."""
+    return _load_groups_and_maxima()[0]
 
 
 def _load_commands() -> list[dict]:
@@ -397,8 +432,18 @@ def _scale_step(factor: float) -> str:
 
 
 def brightness_limit(group: str) -> int:
-    """Per-group brightness ceiling, or the default when the group has none."""
+    """Brightness ceiling for a group: its '@max' file directive if set, else the
+    per-group config override, else the default."""
+    with _lock:
+        file_max = _group_maxima.get(group)
+    if file_max is not None:
+        return file_max
     return AOTO_BRIGHTNESS_LIMITS.get(group, AOTO_BRIGHTNESS_LIMIT_DEFAULT)
+
+
+def _percent_step(limit: int) -> int:
+    """Step of the "Темнее/Ярче 5%" buttons: AOTO_BRIGHTNESS_PERCENT % of the limit."""
+    return max(1, round(limit * AOTO_BRIGHTNESS_PERCENT / 100))
 
 
 def _set_brightness_cmd(value: int) -> dict:
@@ -406,13 +451,13 @@ def _set_brightness_cmd(value: int) -> dict:
             "body": {AOTO_SET_BRIGHTNESS_KEY: value}}
 
 
-def _adjust_brightness(group: str, sign: int) -> str:
-    """Read each controller's brightness, shift by ±step, clamp, and write it back."""
+def _adjust_brightness_by(group: str, sign: int, step: int) -> str:
+    """Read each controller's brightness, shift by `sign * step`, clamp, write back."""
     read_cmd = _command_by_label(AOTO_BRIGHTNESS_STATUS_LABEL)
     addrs = addresses(group)
     if read_cmd is None or not addrs:
         return ""
-    step, limit = get_step(), brightness_limit(group)
+    limit = brightness_limit(group)
 
     def adjust_one(addr: str) -> None:
         ok, cur = _request(addr, read_cmd)
@@ -427,8 +472,19 @@ def _adjust_brightness(group: str, sign: int) -> str:
     return ""   # After.RERENDER
 
 
+def _adjust_brightness(group: str, sign: int) -> str:
+    """+/- by the manual step (get_step)."""
+    return _adjust_brightness_by(group, sign, get_step())
+
+
+def _adjust_brightness_pct(group: str, sign: int) -> str:
+    """+/- by 5% of the group maximum (the '@max' file directive or config)."""
+    return _adjust_brightness_by(group, sign, _percent_step(brightness_limit(group)))
+
+
 def _brightness_children(node) -> list:
-    """The "Управление яркостью" submenu: current value, +/-, and the step controls."""
+    """The "Управление яркостью" submenu: current value, +/- (manual step and 5% of max),
+    and the manual-step controls."""
     group = node.context["group"]
     step = get_step()
     status = _command_by_label(AOTO_BRIGHTNESS_STATUS_LABEL)
@@ -448,6 +504,14 @@ def _brightness_children(node) -> list:
     out.append(ActionNode(
         name="up", label="Ярче", kind=Kind.COMMAND, after=After.RERENDER,
         on_press=lambda g=group: _adjust_brightness(g, +1),
+    ))
+    out.append(ActionNode(
+        name="down5", label="Темнее 5%", kind=Kind.COMMAND, after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness_pct(g, -1),
+    ))
+    out.append(ActionNode(
+        name="up5", label="Ярче 5%", kind=Kind.COMMAND, after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness_pct(g, +1),
     ))
     out.append(ActionNode(
         name="step-half", label="Шаг ÷2", kind=Kind.COMMAND, after=After.RERENDER,

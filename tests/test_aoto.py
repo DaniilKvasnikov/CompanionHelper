@@ -251,6 +251,7 @@ def bright(monkeypatch):
     monkeypatch.setattr(aoto, "_groups", dict(groups))
     monkeypatch.setattr(aoto, "_commands", list(commands))
     monkeypatch.setattr(aoto, "_status", {})
+    monkeypatch.setattr(aoto, "_group_maxima", {})
     monkeypatch.setattr(aoto, "_step", 50)
     monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMIT_DEFAULT", 1500)
     monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_MIN", 0)
@@ -302,6 +303,69 @@ def test_adjust_brightness_clamps_to_min(bright, monkeypatch):
     assert set(writes.values()) == {0}
 
 
+# --- 5% buttons: group '@max' from the group file --------------------------
+def test_parse_group_lines_addresses_and_max_directive(monkeypatch):
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_MAX_DIRECTIVE", "@max")
+    addrs, maximum = aoto._parse_group_lines([
+        "# comment", "10.0.0.1:8080", "@max = 800", "10.0.0.2:8080  # inline"])
+    assert addrs == ["10.0.0.1:8080", "10.0.0.2:8080"]
+    assert maximum == 800
+
+
+def test_parse_group_lines_ignores_bad_and_unknown_directives(monkeypatch):
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_MAX_DIRECTIVE", "@max")
+    _, maximum = aoto._parse_group_lines(["@max = not-a-number", "@foo = 5", "@max = 1200"])
+    assert maximum == 1200                                  # later valid line wins
+
+
+def test_group_file_scan_carries_maxima(tmp_path, monkeypatch):
+    d = tmp_path / "groups"
+    d.mkdir()
+    (d / "01_Зал.txt").write_text(
+        "# стена\n10.0.0.1:8080\n@max = 800\n", encoding="utf-8")
+    (d / "02_Потолок.txt").write_text("10.0.0.3:8080\n", encoding="utf-8")
+    monkeypatch.setattr(aoto, "AOTO_GROUPS_DIR", d)
+    groups, maxima = aoto._load_groups_and_maxima()
+    assert groups == {"Зал": ["10.0.0.1:8080"], "Потолок": ["10.0.0.3:8080"]}
+    assert maxima == {"Зал": 800, "Потолок": None}
+    aoto.refresh()
+    assert aoto._group_maxima["Зал"] == 800
+
+
+def test_brightness_limit_file_directive_wins(monkeypatch):
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMIT_DEFAULT", 1500)
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMITS", {"Зал1": 900})
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": 800})
+    assert aoto.brightness_limit("Зал1") == 800             # file directive first
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": None})
+    assert aoto.brightness_limit("Зал1") == 900             # then the config override
+    assert aoto.brightness_limit("Зал2") == 1500            # then the default
+
+
+def test_percent_step_of_limit(monkeypatch):
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_PERCENT", 5)
+    assert aoto._percent_step(1500) == 75
+    assert aoto._percent_step(1000) == 50
+    assert aoto._percent_step(1) == 1                       # never below 1
+
+
+def test_adjust_brightness_pct_steps_5pct_of_max(bright, monkeypatch):
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_PERCENT", 5)
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": 1500})   # 5% step = 75
+    writes = {}
+
+    def fake_request(addr, cmd):
+        if cmd.get("response_field"):
+            return (True, 100 if addr.endswith(".1:8080") else 1490)
+        writes[addr] = cmd["body"]["brightness"]
+        return (True, None)
+
+    monkeypatch.setattr(aoto, "_request", fake_request)
+    aoto._adjust_brightness_pct("Зал1", +1)
+    assert writes["10.0.0.1:8080"] == 175                   # 100 + 75
+    assert writes["10.0.0.2:8080"] == 1500                  # 1490 + 75 -> clamped to the max
+
+
 def test_group_commands_adds_brightness_submenu(bright):
     node = MenuNode("Зал1", None, "Зал1", context={"group": "Зал1"})
     btns = aoto._group_commands(node)
@@ -319,13 +383,20 @@ def test_no_brightness_submenu_without_status_command(catalog):
 def test_brightness_children_layout_and_step_label(bright):
     node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
     kids = aoto._brightness_children(node)
-    assert [k.name for k in kids] == ["brightness", "down", "up",
+    assert [k.name for k in kids] == ["brightness", "down", "up", "down5", "up5",
                                       "step-half", "step", "step-double"]
     assert next(k for k in kids if k.name == "step").label == "Шаг\n50"
     next(k for k in kids if k.name == "step-half").on_press()   # ÷2
     assert aoto.get_step() == 25
     step_btn = next(k for k in aoto._brightness_children(node) if k.name == "step")
     assert step_btn.label == "Шаг\n25"                          # re-render shows new step
+
+
+def test_brightness_children_have_5pct_buttons(bright):
+    node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
+    kids = {k.name: k for k in aoto._brightness_children(node)}
+    assert kids["down5"].label == "Темнее 5%" and kids["down5"].after == After.RERENDER
+    assert kids["up5"].label == "Ярче 5%" and kids["up5"].after == After.RERENDER
 
 
 def test_brightness_status_button_shows_cached_value(bright, monkeypatch):
