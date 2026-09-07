@@ -164,6 +164,8 @@ POST http://<ip>:8088/pixelhue/v1/system/auth/login
 |---|---|---|---|
 | GET | `/node/open-detail?nodeId=1` | нет | `{sn, startTime}` — для токена `[verified]` |
 | GET | `/node/detail?nodeId=1` | да | модель, версия, `online`, `status` `[verified]` |
+| GET | `/node/interface-location?nodeId=1` (unico) | да | Location/Mapping вкл/выкл — PixelFlow «Device→Location→Mapping» `[verified]` |
+| PUT | `/node/interface-location` (unico) | да | тело `{"nodeId":1,"enable":0\|1}` — тот же тумблер `[verified]` |
 | GET | `/node/status` (2.5) | да | статус ноды `[docs]` |
 | PUT | `/node/factory-reset` (2.2) | да | сброс к заводским `[docs]` |
 | GET/PUT | `/system/ctrl/source-backup` | да | резервный источник входа `[companion]` |
@@ -179,6 +181,14 @@ POST http://<ip>:8088/pixelhue/v1/system/auth/login
   "versionMatching": { "serverVersion": "V2.0.0", "minMatchingVersion": "..." }
 }}
 ```
+
+> **Mapping (`node/interface-location`)** `[verified]`. Тумблер PixelFlow
+> «Device → Location → Mapping» = `PUT /unico/v1/node/interface-location`
+> с `{"nodeId":1,"enable":0|1}`; состояние читается обратно из **того же**
+> ресурса: `GET /unico/v1/node/interface-location?nodeId=1` →
+> `{"nodeId":1,"enable":0}`. Поле `location` в `node/detail` PUT **не**
+> отражает — для статуса полагаться только на GET ресурса. Сам тумблер
+> включается только под `/unico/v1` (под `/pixelhue/v1` — 405).
 
 ### 6.2 Экраны (Screens)
 

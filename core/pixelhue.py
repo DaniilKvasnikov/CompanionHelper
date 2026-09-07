@@ -13,6 +13,9 @@ reboot (a stale token answers HTTP 401). Everything else goes through the
 Inside the tab:
   - a status button (node version + online/offline, re-polls on press);
   - global FTB / Freeze toggles acting on every usable screen at once;
+  - a Mapping toggle (the "Device->Location->Mapping" switch from PixelFlow,
+    PUT /unico/v1/node/interface-location, state read back from the same
+    resource since node/detail lags);
   - a per-screen submenu (real outputs only -- MVR screens are dropped) with
     Take / Cut / Freeze / FTB;
   - a preset list (apply to the program region).
@@ -54,6 +57,7 @@ log = logging.getLogger("pixelhue")
 _SCREENS = "/unico/v1/screen/list-detail"
 _NODE_DETAIL = "/pixelhue/v1/node/detail?nodeId={node}"
 _OPEN_DETAIL = "/pixelhue/v1/node/open-detail?nodeId={node}"
+_LOCATION = "/unico/v1/node/interface-location"   # "Location/Mapping" on/off (PixelFlow Device->Location->Mapping)
 
 
 @dataclass
@@ -76,6 +80,7 @@ _lock = threading.RLock()
 _token: str | None = None            # JWT cache (in memory only; see API guide §9.8)
 _node: dict | None = None            # node/detail data (version, online, ...)
 _last_err: str | None = None         # why the last poll failed (for the status button)
+_mapping: int | None = None          # Location/Mapping enabled (0|1), from node/interface-location
 _screens: list[Screen] = []          # usable (non-MVR) screens, cached
 _presets: list[Preset] = []          # presets, cached
 
@@ -210,6 +215,11 @@ def presets() -> list[Preset]:
         return list(_presets)
 
 
+def mapping_enabled() -> int | None:
+    with _lock:
+        return _mapping
+
+
 def _screen_by_id(screen_id: int) -> Screen | None:
     return next((s for s in screens() if s.screen_id == screen_id), None)
 
@@ -224,6 +234,11 @@ def _flag_state(attr: str) -> int | None:
 
 def _flag_word(v: int | None) -> str:
     return "on" if v == 1 else ("off" if v == 0 else "mix")
+
+
+def _on_off(v: int | None) -> str:
+    """Single on/off with an 'unknown' placeholder (mapping state before first poll)."""
+    return "on" if v == 1 else ("off" if v == 0 else "…")
 
 
 def _green():
@@ -262,8 +277,18 @@ def _pull_presets() -> None:
             _presets = parsed
 
 
+def _pull_mapping() -> None:
+    """Location/Mapping on/off comes from node/interface-location (node/detail lags)."""
+    global _mapping
+    ok, data = _request("GET", _LOCATION + f"?nodeId={PIXELHUE_NODE_ID}")
+    if ok and isinstance(data, dict) and data.get("enable") in (0, 1):
+        with _lock:
+            _mapping = data["enable"]
+
+
 def _pull_all() -> None:
     _pull_node()
+    _pull_mapping()
     _pull_screens()
     _pull_presets()
 
@@ -316,6 +341,11 @@ def freeze_body(screen_id: int, freeze: int) -> dict:
 
 def ftb_body(screen_id: int, enable: int) -> dict:
     return {"screenId": screen_id, "ftb": {"enable": enable, "time": PIXELHUE_FTB_TIME_MS}}
+
+
+def mapping_body(node_id: int, enable: int) -> dict:
+    """Location/Mapping toggle body for PUT /unico/v1/node/interface-location."""
+    return {"nodeId": node_id, "enable": enable}
 
 
 def preset_body(p: Preset) -> dict:
@@ -382,6 +412,15 @@ def _toggle_global_ftb() -> str:
     return ""
 
 
+def _toggle_mapping() -> str:
+    cur = mapping_enabled()
+    if cur is None:
+        return ""
+    _apply("PUT", _LOCATION, mapping_body(PIXELHUE_NODE_ID, 0 if cur else 1))
+    _pull_mapping()
+    return ""
+
+
 def _apply_preset(guid: str) -> str:
     p = next((p for p in presets() if p.guid == guid), None)
     return _apply("POST", "/unico/v1/preset/apply", preset_body(p)) if p else "ERR нет пресета"
@@ -418,6 +457,9 @@ def _tab_children(node) -> list:
         ActionNode(name="freeze", label=f"Freeze\n{_flag_word(_flag_state('freeze'))}",
                    kind=Kind.COMMAND, after=After.RERENDER,
                    color_fn=_global_color("freeze"), on_press=_toggle_global_freeze),
+        ActionNode(name="mapping", label=f"Mapping\n{_on_off(mapping_enabled())}",
+                   kind=Kind.COMMAND, after=After.RERENDER,
+                   color_fn=_mapping_color, on_press=_toggle_mapping),
     ]
     if screens():
         out.append(MenuNode(name="__screens__", path=None, label="Экраны",
@@ -445,6 +487,10 @@ def _global_color(attr: str):
     def color():
         return _green() if _flag_state(attr) == 1 else None
     return color
+
+
+def _mapping_color():
+    return _green() if mapping_enabled() == 1 else None
 
 
 def _screen_color(sid: int, attr: str):

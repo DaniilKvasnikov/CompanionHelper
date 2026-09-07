@@ -39,6 +39,7 @@ def state(monkeypatch):
     monkeypatch.setattr(pixelhue, "_token", None)
     monkeypatch.setattr(pixelhue, "_node", None)
     monkeypatch.setattr(pixelhue, "_last_err", None)
+    monkeypatch.setattr(pixelhue, "_mapping", None)
     monkeypatch.setattr(pixelhue, "_screens", [])
     monkeypatch.setattr(pixelhue, "_presets", [])
     return pixelhue
@@ -140,6 +141,11 @@ def test_cut_freeze_ftb_bodies():
     assert pixelhue.ftb_body(6, 0) == {"screenId": 6, "ftb": {"enable": 0, "time": pixelhue.PIXELHUE_FTB_TIME_MS}}
 
 
+def test_mapping_body():
+    assert pixelhue.mapping_body(1, 1) == {"nodeId": 1, "enable": 1}
+    assert pixelhue.mapping_body(1, 0) == {"nodeId": 1, "enable": 0}
+
+
 def test_preset_body_matches_companion_shape():
     body = pixelhue.preset_body(pixelhue.Preset("p1", "Preset A", 3))
     assert body == {
@@ -228,6 +234,8 @@ def test_pull_all_populates_caches(state, monkeypatch):
                                    _raw_screen(1, "MVR 1", type_=8)]}
         if path == "/unico/v1/preset":
             return True, {"list": [{"guid": "p1", "name": "Preset A", "serial": "3"}]}
+        if pixelhue._LOCATION in path:
+            return True, {"nodeId": 1, "enable": 1}
         return False, "unexpected"
 
     monkeypatch.setattr(pixelhue, "_request", fake)
@@ -235,6 +243,7 @@ def test_pull_all_populates_caches(state, monkeypatch):
     assert [s.screen_id for s in pixelhue.screens()] == [6]
     assert [(p.guid, p.serial) for p in pixelhue.presets()] == [("p1", 3)]
     assert pixelhue._node == {"online": 1, "version": "V2.0.0"}
+    assert pixelhue.mapping_enabled() == 1
 
 
 def test_pull_failure_keeps_screens_but_marks_node_offline(state, monkeypatch):
@@ -295,6 +304,25 @@ def test_global_toggle_no_screens_is_noop(state, monkeypatch):
     assert called == []
 
 
+def test_mapping_toggle_posts_and_repolls(state, monkeypatch):
+    monkeypatch.setattr(pixelhue, "_mapping", 1)
+    seen, repoll = [], []
+    monkeypatch.setattr(pixelhue, "_request",
+                        lambda m, p, b=None, retried=False: seen.append((p, b)) or (True, {}))
+    monkeypatch.setattr(pixelhue, "_pull_mapping", lambda: repoll.append(1))
+    assert pixelhue._toggle_mapping() == ""
+    assert seen == [(pixelhue._LOCATION,
+                     {"nodeId": pixelhue.PIXELHUE_NODE_ID, "enable": 0})]
+    assert repoll == [1]
+
+
+def test_mapping_toggle_unknown_state_is_noop(state, monkeypatch):
+    called = []
+    monkeypatch.setattr(pixelhue, "_request", lambda *a, **k: called.append(1) or (True, {}))
+    assert pixelhue._toggle_mapping() == ""
+    assert called == []
+
+
 # --- menu tree --------------------------------------------------------------
 def test_attach_inserts_after_osc_tab():
     root = MenuNode("", None, "", children=[
@@ -315,6 +343,7 @@ def test_tab_children_no_host(state, monkeypatch):
 
 def test_tab_children_screens_and_presets_submenus(state, monkeypatch):
     monkeypatch.setattr(pixelhue, "_node", {"online": 1, "version": "V2.0.0"})
+    monkeypatch.setattr(pixelhue, "_mapping", 1)
     monkeypatch.setattr(pixelhue, "_screens", [_screen(6, "Screen 1")])
     monkeypatch.setattr(pixelhue, "_presets", [pixelhue.Preset("p1", "Preset A", 0)])
     kids = pixelhue._tab_children(None)
@@ -322,6 +351,9 @@ def test_tab_children_screens_and_presets_submenus(state, monkeypatch):
     assert by_name["status"].label == "V2.0.0\nonline"
     assert by_name["status"].color_fn() == COLORS[Kind.FEEDBACK]
     assert by_name["ftb"].after == After.RERENDER and "off" in by_name["ftb"].label
+    assert by_name["mapping"].label == "Mapping\non"
+    assert by_name["mapping"].after == After.RERENDER
+    assert by_name["mapping"].color_fn() == COLORS[Kind.FEEDBACK]
     assert by_name["__screens__"].label == "Экраны"
     assert by_name["__presets__"].label == "Пресеты"
 
