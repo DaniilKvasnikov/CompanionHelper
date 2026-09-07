@@ -243,7 +243,8 @@ def _set_command(param: dict) -> dict | None:
 
 def _read_command(param: dict) -> dict:
     g = param["get"]
-    return {"method": g.get("method", "POST"), "path": g["path"], "body": {},
+    return {"method": g.get("method", "POST"), "path": g["path"],
+            "body": g.get("body") or {},       # some reads need a body, e.g. {"id": 1}
             "response_field": g["field"]}
 
 

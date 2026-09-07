@@ -1,21 +1,6 @@
 {
-  "_readme": "Каталог параметров для захвата пресетов AOTO. Список растёт правкой этого файла - без кода. Каждый параметр: name (подпись), set {path, key, method?, extra?} - как POST'ить значение, get {path, field, method?} - как прочитать текущее (поле через точку). Необязательный map {'прочитанное': 'записываемое'} переводит значения чтения в значения записи (см. HDR: чтение SDR=1/HLG=2/PQ=3, запись SDR=2/HLG=3/PQ=4). RGB ScreenTest = три независимых параметра (setTestImage мержит по ключам - запись одного цвета не трогает другие; envelope в extra). ColorTemperature пишется через setColorTemple (так в прошивке).",
+  "_readme": "Каталог параметров для захвата пресетов AOTO. Список растёт правкой этого файла - без кода. Каждый параметр: name (подпись), set {path, key, method?, extra?} - как POST'ить значение, get {path, field, body?, method?} - как прочитать текущее (поле через точку; body - если чтению нужно тело, напр. {id:1}). Необязательный map {'прочитанное': 'записываемое'} переводит значения чтения в значения записи (см. HDR: чтение SDR=1/HLG=2/PQ=3, запись SDR=2/HLG=3/PQ=4). ScreenTest: включение теста - отдельный параметр (testPicEn); RGB-параметры пишут только свой цвет (setTestImage мержит по ключам) и НЕ трогают testPicEn. ColorTemperature пишется через setColorTemple (так в прошивке). Вход/Блэкаут/Фриз не включены: чтения текущего screen-status на этой прошивке нет (getScreenStatus - 404).",
   "parameters": [
-    {
-      "name": "Вход",
-      "set": { "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "key": "type" },
-      "get": { "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "field": "obj.type" }
-    },
-    {
-      "name": "Блэкаут",
-      "set": { "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "key": "type" },
-      "get": { "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "field": "obj.type" }
-    },
-    {
-      "name": "Фриз",
-      "set": { "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "key": "type" },
-      "get": { "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "field": "obj.type" }
-    },
     {
       "name": "Яркость",
       "set": { "path": "/ng_ctrl_sys/globalSettings/setBrightness", "key": "brightness" },
@@ -27,22 +12,32 @@
       "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.colorTemperature" }
     },
     {
+      "name": "ScreenTest",
+      "set": { "path": "/ng_ctrl_sys/input/setTestImage", "key": "testPicEn",
+        "extra": { "areaId": 1, "testPicMode": 1, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+      "get": { "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "field": "obj.testPicEn",
+        "body": { "id": 1 } }
+    },
+    {
       "name": "ScreenTest R",
       "set": { "path": "/ng_ctrl_sys/input/setTestImage", "key": "testPicRedValue",
-        "extra": { "areaId": 1, "testPicEn": 1, "testPicMode": 1, "testPicDeep": 1, "testPicPlayStatus": 0 } },
-      "get": { "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "field": "obj.testPicRedValue" }
+        "extra": { "areaId": 1, "testPicMode": 1, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+      "get": { "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "field": "obj.testPicRedValue",
+        "body": { "id": 1 } }
     },
     {
       "name": "ScreenTest G",
       "set": { "path": "/ng_ctrl_sys/input/setTestImage", "key": "testPicGreenValue",
-        "extra": { "areaId": 1, "testPicEn": 1, "testPicMode": 1, "testPicDeep": 1, "testPicPlayStatus": 0 } },
-      "get": { "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "field": "obj.testPicGreenValue" }
+        "extra": { "areaId": 1, "testPicMode": 1, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+      "get": { "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "field": "obj.testPicGreenValue",
+        "body": { "id": 1 } }
     },
     {
       "name": "ScreenTest B",
       "set": { "path": "/ng_ctrl_sys/input/setTestImage", "key": "testPicBlueValue",
-        "extra": { "areaId": 1, "testPicEn": 1, "testPicMode": 1, "testPicDeep": 1, "testPicPlayStatus": 0 } },
-      "get": { "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "field": "obj.testPicBlueValue" }
+        "extra": { "areaId": 1, "testPicMode": 1, "testPicDeep": 1, "testPicPlayStatus": 0 } },
+      "get": { "path": "/ng_ctrl_sys/input/getDataBaseInputInfo", "field": "obj.testPicBlueValue",
+        "body": { "id": 1 } }
     },
     {
       "name": "HDR",

@@ -104,6 +104,16 @@ def test_parse_catalog_needs_set_and_get():
     assert len(aotopresets.parse_catalog(data, "x")) == 1
 
 
+def test_read_command_carries_optional_get_body():
+    cmd = aotopresets._read_command(
+        {"get": {"path": "/i", "field": "obj.testPicEn", "body": {"id": 1}}})
+    assert cmd["body"] == {"id": 1}
+    assert cmd["response_field"] == "obj.testPicEn"
+    # no body in the spec -> empty object (as the API expects POST {} reads)
+    cmd2 = aotopresets._read_command({"get": {"path": "/g", "field": "obj.b"}})
+    assert cmd2["body"] == {}
+
+
 # --- disk tree --------------------------------------------------------------
 def test_refresh_scans_folders_presets_and_catalog(store):
     assert aotopresets.available()
