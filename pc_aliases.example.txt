@@ -1,0 +1,12 @@
+# PC aliases: "ip = alias", one per line. Text after '#' is a comment.
+#
+# This file is MACHINE-LOCAL (git-ignored): copy it to pc_aliases.txt in the
+# project root and fill in the aliases for THIS machine's PDQ target lists.
+# It is read at start / POST /reload (see core/pcbrowser.py).
+#
+# A host that matches a PDQ target here shows its alias above the ip on the
+# deck and sorts by the alias (aliased hosts first, then the rest by ip).
+#
+# Example:
+# 192.168.200.102 = Ресепшн
+# 192.168.200.103 = Студия A

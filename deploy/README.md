@@ -11,9 +11,17 @@ These are meant for the **deployment machine**, not your dev box.
 
 1. Copy the whole project onto the target machine and make sure it runs:
    `python main.py` from the project root.
-2. If you use a virtualenv, edit `PYTHON` at the top of
-   `start-companionhelper.bat` to point at its `python.exe`.
-3. Right-click **`install-autostart.bat` → Run as administrator**
+2. (Recommended) Create a project-local virtualenv — `start-companionhelper.bat`
+   picks it up automatically, no file edits needed:
+   ```
+   python -m venv .venv
+   .venv\Scripts\python -m pip install -r requirements.txt
+   ```
+   Without a `.venv`, the wrapper falls back to `python` from `PATH`.
+3. Per-machine configuration (`config.local.json`, `pc_aliases.txt`) — see the
+   "Machine-local configuration" section of the main README. These files are
+   git-ignored, so `git pull` on other machines never conflicts over them.
+4. Right-click **`install-autostart.bat` → Run as administrator**
    (or run it from an elevated command prompt).
 
 It registers a Task Scheduler task named **CompanionHelper** that runs

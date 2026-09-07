@@ -9,5 +9,11 @@ env/
 # local editor / agent settings
 **/.claude/settings.local.json
 
+# machine-local config (per-device overrides; never commit - keeps git pull
+# conflict-free across machines). Templates live in git as
+# config.local.example.json and pc_aliases.example.txt.
+config.local.json
+pc_aliases.txt
+
 # bundled NVIDIA WMI SDK (redistribution restricted) — kept local, not published
 NvidiaResAndColor/2.29-NVWMI-developer/

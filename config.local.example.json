@@ -1,0 +1,22 @@
+{
+  "_readme": "Machine-local config for CompanionHelper. On EACH machine, copy this file to 'config.local.json' (git-ignored) in the project root and set only the keys that differ there. DELETE any key you do not need to override - a missing key always falls back to the default in core/config.py, so you keep receiving later default changes on git pull. Keys starting with '_' are notes and are ignored. Windows paths: use forward slashes, e.g. 'C:/Program Files (x86)/...' (a single backslash would break JSON). FFS_JOBS is a JSON array of [label, path-to-.ffs_batch] pairs.",
+
+  "_deck": "Which Companion page number this machine's physical deck is mapped to, and the Companion OSC endpoint this server writes button visuals to.",
+  "DEFAULT_PAGE": "1",
+  "OSC_HOST": "127.0.0.1",
+  "OSC_PORT": 12321,
+
+  "_pdq": "PDQ Deploy is local-only: these paths point at THIS machine's install (Enterprise license + elevated server needed for deploys).",
+  "PDQ_DEPLOY_EXE": "C:/Program Files (x86)/Admin Arsenal/PDQ Deploy/PDQDeploy.exe",
+  "PDQ_DB_PATH": "C:/ProgramData/Admin Arsenal/PDQ Deploy/Database.db",
+  "PDQ_TIMEOUT": 60,
+
+  "_touch": "TouchDesigner OSC target on this machine (the per-group OSC addresses come from the touch/groups/*.txt files).",
+  "TOUCH_OSC_HOST": "127.0.0.1",
+  "TOUCH_OSC_PORT": 7777,
+
+  "_ffs": "FreeFileSync is per-machine: the exe path and which batch jobs belong to this machine. FFS_JOBS is an array of [label, path-to-.ffs_batch] pairs.",
+  "FFS_EXE": "C:/Program Files/FreeFileSync/FreeFileSync.exe",
+  "FFS_TIMEOUT": 600,
+  "FFS_JOBS": []
+}

@@ -1,4 +1,14 @@
-"""Central configuration. Tweak values here, not scattered through the code."""
+"""Central configuration.
+
+Values defined here are the DEFAULTS shared by every machine through git.
+Real per-machine values are NOT edited here -- they live in a git-ignored
+`config.local.json` next to the project root (copy of
+`config.local.example.json`), read once at import time and applied on top of
+these defaults (see the block at the bottom of this file). Keep editing the
+defaults here when a knob should change for everyone.
+"""
+import json
+import logging
 from pathlib import Path
 
 from .constants import Kind
@@ -150,3 +160,61 @@ COLORS = {
     Kind.NAV:      ("#22303f", "#cfe3ff"),  # paging (prev / next)
     Kind.EMPTY:    ("#000000", "#000000"),  # cleared cell
 }
+
+# --- Machine-local overrides ----------------------------------------------
+# Every machine may differ (Companion page number, PDQ/FFS install paths, OSC
+# endpoints, sync jobs, ...). Editing those in THIS file would make every
+# `git pull` on another machine conflict. Instead, each machine keeps its own
+# copy of config.local.example.json as config.local.json (git-ignored); this
+# file is read once at import time and its values REPLACE the defaults above,
+# by name. Keys that are absent fall back to these defaults; keys that start
+# with "_" are notes and are ignored. A missing/invalid file is harmless.
+_LOCAL_CONFIG_FILE = PROJECT_ROOT / "config.local.json"
+_OVERRIDABLE = {  # names a local file may override (uppercase data constants)
+    n for n, v in globals().items()
+    if n.isupper() and not n.startswith("_") and not isinstance(v, type)
+}
+
+
+def _read_local_config(path: Path, source: str = "config.local.json") -> dict:
+    """Read a local-override JSON object; {} on absence, invalid content, or errors."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger("config").warning("%s unreadable: %s", source, e)
+        return {}
+    try:
+        data = json.loads(text)
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger("config").warning("%s is not valid JSON: %s", source, e)
+        return {}
+    if not isinstance(data, dict):
+        logging.getLogger("config").warning("%s must be a JSON object of config names", source)
+        return {}
+    return {k: v for k, v in data.items() if not k.startswith("_")}  # drop notes
+
+
+def apply_local_overrides(overrides: dict, into: dict | None = None,
+                          source: str = "config.local.json") -> list[str]:
+    """Replace config constants named in `overrides` inside `into` (default: this
+    module's globals). Unknown names are logged and skipped, so a typo in the
+    local file never silently breaks a knob. Returns the applied names."""
+    into = globals() if into is None else into
+    applied: list[str] = []
+    for name, value in overrides.items():
+        if name not in _OVERRIDABLE:
+            logging.getLogger("config").warning(
+                "%s: ignoring unknown or non-config key %r", source, name)
+            continue
+        into[name] = value
+        applied.append(name)
+    return applied
+
+
+_local = _read_local_config(_LOCAL_CONFIG_FILE)
+_applied = apply_local_overrides(_local)
+if _applied:
+    logging.getLogger("config").info(
+        "local overrides from config.local.json: %s", ", ".join(sorted(_applied)))

@@ -26,6 +26,16 @@ python -m pytest tests/test_pdq.py -q  # a single file
 
 Two transports, opposite directions: **presses come in over HTTP** (FastAPI), **button visuals go out over OSC/UDP** to Companion's OSC listener (`OSC_HOST`/`OSC_PORT` 12321 in [core/config.py](core/config.py)). Companion must have OSC control enabled.
 
+## Machine-local configuration (config.local.json)
+
+The repo is pulled on several machines with different local values (deck page, PDQ/FFS paths, OSC endpoints, sync jobs). **Never edit those into `core/config.py`** — a pull on another machine would conflict. The split:
+
+- `core/config.py` holds **shared defaults only**. Per-machine values go in a git-ignored **`config.local.json`** next to the project root (template: `config.local.example.json`, tracked). At import, the bottom block of `config.py` reads it and **replaces** each named constant (whole value, by name). Read it once — a knob changed in the JSON needs a server restart to take effect, same as editing `config.py`.
+- Absent keys keep the code default (so future default changes still arrive on pull); keys starting with `_` are ignored (notes); an **unknown key is logged as a warning and skipped** — a typo must not silently break a knob. Missing/invalid file → defaults + a warning, never a crash.
+- Only names that are uppercase data constants can be overridden (a JSON `"Kind"` etc. is ignored). Values are JSON: replace tuples/lists/dicts wholly (`FFS_JOBS` is an array of `[label, path]` pairs). Use forward slashes in Windows paths.
+- Machine-local **data** follows the same pattern: `pc_aliases.txt` is git-ignored (template `pc_aliases.example.txt`); `deploy/start-companionhelper.bat` auto-uses `project\.venv` so it never needs a per-machine edit. Both files are named in `.gitignore`.
+- New per-machine knobs: keep the default in `config.py`, mention the key in `config.local.example.json`.
+
 ## Key architectural constraint
 
 Companion's remote API can only change a button's **visuals** (text, colors), never its **action**. So dynamic submenus are impossible to build on Companion's side. Instead:
@@ -126,7 +136,7 @@ These are the principles the codebase already follows. Match them when extending
 
 1. **One module, one job.** Each `core/` file does exactly one thing (`osc` = wire format, `companion` = visual facade, `render` = diff+draw, `layout` = grid math, `loader` = tree from disk, `dispatcher` = press→action, `pdq` = PDQ, `pcbrowser` = the PC feature + shared catalog, `pdqmenu` = the batch-deploy menu, `aoto` = the LED-processor HTTP menu, `touch` = the TouchDesigner OSC menu, `ffs` = the FreeFileSync "Sync" tab, `develop` = the pull+restart tab, `progress` = the refresh progress bar). A new feature gets its own module rather than swelling an existing one (e.g. `pdqmenu` reuses `pcbrowser`'s catalog through its public API instead of duplicating it or bloating it).
 2. **Only `render`/`companion` talk to Companion.** Every button update goes through `render.draw`/`render.update_cell` so the `PageState.rendered` diff cache stays truthful. Never call `osc`/`companion` directly from a feature — you'll desync the diff and push stale or duplicate updates.
-3. **Config over constants-in-code.** Every tunable (ports, paths, timeouts, colors, intervals, grid size) lives in [core/config.py](core/config.py). Don't hardcode at the call site. Slot kinds and `ActionNode.after` values are named in [core/constants.py](core/constants.py) (`Kind`, `After`) — use those, never bare `"menu"`/`"back"` string literals.
+3. **Config over constants-in-code.** Every tunable (ports, paths, timeouts, colors, intervals, grid size) has its **default** in [core/config.py](core/config.py) (per-machine values go in the ignored `config.local.json` — see "Machine-local configuration" above). Don't hardcode at the call site. Slot kinds and `ActionNode.after` values are named in [core/constants.py](core/constants.py) (`Kind`, `After`) — use those, never bare `"menu"`/`"back"` string literals.
 4. **Fail soft at every external edge.** OSC, the PDQ CLI, the PDQ DB, ping, and user scripts must never crash the deck. Catch, log a warning, and surface the problem as button text (`ERR`) — the deck keeps working. The broad `except Exception` blocks are deliberate for this reason (marked `# noqa: BLE001`), and are only allowed at those I/O edges, not in core logic.
 5. **Providers must be cheap.** A `provider`/`color_fn` runs on every render and press. Never do I/O (DB, network, subprocess) inside one — read from a module-level cache that a background thread or an explicit refresh populates (see `pcbrowser`'s catalog/ping caches).
 6. **Hold the lock briefly; block outside it.** `state.lock` guards navigation state only. Long work (running a script, a PDQ deploy, OSC/DB I/O) happens *after* the `with state.lock` block so presses on other pages aren't stalled.

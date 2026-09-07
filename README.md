@@ -80,9 +80,19 @@ python main.py                    # serves on 0.0.0.0:7878
 - `POST /press?page=&row=&col=` — called by every deck button on press.
 - `POST /reload` — rebuild the menu tree from disk and redraw active pages (use after editing `menus/`).
 
-All tunables — ports, PDQ paths, timeouts, colors, intervals, grid size — live in [`core/config.py`](core/config.py).
+All tunables — ports, PDQ paths, timeouts, colors, intervals, grid size — have their **defaults** in [`core/config.py`](core/config.py).
 
 To have the server start automatically **elevated** at logon on the deployment machine, see [`deploy/`](deploy/) — a Task Scheduler installer (`install-autostart.bat`).
+
+## Machine-local configuration
+
+The same repo is pulled on several machines (studio PCs, the deck machine, a dev box), and each has different values: which Companion page the deck maps to, PDQ/FreeFileSync install paths, OSC endpoints, sync jobs, PC aliases. None of those live in tracked files, so a `git pull` never conflicts over them:
+
+- **`core/config.py` keeps only shared defaults.** To set a value for *one machine*, create **`config.local.json`** in the project root as a copy of **`config.local.example.json`** (tracked) and set only the keys that differ. The file is read once at startup and each named key *replaces* that config constant; delete keys you don't need (a missing key keeps falling back to the default, so you still receive later default changes on pull). Keys starting with `_` are notes and are ignored; an unknown key is logged and skipped (typo protection), and a missing/invalid file is harmless. Use forward slashes in Windows paths, e.g. `"C:/Program Files (x86)/Admin Arsenal/PDQ Deploy/PDQDeploy.exe"`.
+- **`pc_aliases.txt` is machine-local too** (git-ignored): copy **`pc_aliases.example.txt`** per machine and fill in that machine's aliases.
+- **`deploy/start-companionhelper.bat` needs no per-machine edits**: it uses `project\.venv\Scripts\python.exe` when the venv exists, else `python` from `PATH`. Create the venv once per machine (`python -m venv .venv` + install `requirements.txt`); `.venv` is git-ignored.
+
+Both `config.local.json` and `pc_aliases.txt` are in `.gitignore`, so a `git pull`/`git status` on another machine simply never sees them.
 
 ## Tests
 
@@ -120,7 +130,8 @@ core/
 menus/             the menu hierarchy (folders = submenus, files = buttons)
 aoto/              Aoto groups (groups/*.txt) and commands (commands.json)
 touch/             Touch groups (groups/*.txt, "label = filename" per line)
-pc_aliases.txt     optional "ip = alias" names for PDQ hosts on the deck
+pc_aliases.example.txt  template for pc_aliases.txt (see "Machine-local configuration")
+config.local.example.json  template for config.local.json (see "Machine-local configuration")
 tests/             pytest suite
 ```
 
