@@ -179,6 +179,18 @@ def run_group(group: str, cmd: dict) -> str:
     return _action_text(_run(group, cmd))
 
 
+# --- public seams for the preset browser (core/aotopresets.py) -------------
+def fire(group: str, cmd: dict) -> bool:
+    """Fire {method, path, body} at every controller; True when all replied ok."""
+    results = _run(group, cmd)
+    return bool(results) and all(ok for _a, ok, _v in results)
+
+
+def probe(group: str, cmd: dict) -> list[tuple[str, bool, object]]:
+    """Read a command with a response_field from every controller: (addr, ok, value) pairs."""
+    return list(_run(group, cmd))
+
+
 def _action_text(results: list[tuple[str, bool, object]]) -> str:
     n = len(results)
     n_ok = sum(1 for _a, ok, _v in results if ok)
@@ -341,6 +353,10 @@ def _group_commands(node) -> list:
             name="__hdr__", path=None, label="Dynamic\nRange",
             provider=_hdr_children, context={"group": group},
         ))
+    from . import aotopresets          # local import: aotopresets imports this module
+    node = aotopresets.group_presets_node(group)
+    if node is not None:
+        out.append(node)
     return out
 
 

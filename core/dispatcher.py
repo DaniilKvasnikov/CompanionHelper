@@ -18,10 +18,11 @@ _tree: MenuNode = loader.load_tree()
 
 def reload_tree() -> None:
     global _tree
-    from . import aoto, osc_buttons, pcbrowser, touch
+    from . import aoto, aotopresets, osc_buttons, pcbrowser, touch
 
     pcbrowser.refresh_catalog()  # re-read packages / target lists from the DB
     aoto.refresh()               # re-read Aoto groups / commands from disk
+    aotopresets.refresh()        # re-read Aoto preset folders/files from disk
     touch.refresh()              # re-read Touch groups from disk
     osc_buttons.refresh()        # re-read OSC button groups from disk
     _tree = loader.load_tree()

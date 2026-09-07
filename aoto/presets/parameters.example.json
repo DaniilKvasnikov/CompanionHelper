@@ -1,0 +1,34 @@
+{
+  "_readme": "Каталог параметров для захвата пресетов AOTO. Скопируйте в parameters.json (в той же папке) и дополните своими параметрами - список растёт без правки кода. Каждый параметр: name (подпись), set {path, key, method?, extra?} - как POST'ить значение, get {path, field, method?} - как прочитать текущее значение (поле через точку). Необязательный map {"прочитанное": "записываемое"} переводит значения чтения в значения записи (см. HDR: чтение SDR=1/HLG=2/PQ=3, запись SDR=2/HLG=3/PQ=4).",
+  "parameters": [
+    {
+      "name": "Вход",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "key": "type" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "field": "obj.type" }
+    },
+    {
+      "name": "Блэкаут",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "key": "type" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "field": "obj.type" }
+    },
+    {
+      "name": "Фриз",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "key": "type" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "field": "obj.type" }
+    },
+    {
+      "name": "Яркость",
+      "set": { "path": "/ng_ctrl_sys/globalSettings/setBrightness", "key": "brightness" },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.brightness" }
+    },
+    {
+      "name": "HDR",
+      "map": { "1": 2, "2": 3, "3": 4 },
+      "set": {
+        "path": "/ng_ctrl_sys/globalSettings/setHDR", "key": "hdrSetting",
+        "extra": { "maximumBrightness": 10000, "coefficient": 1 }
+      },
+      "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.hdrSetting" }
+    }
+  ]
+}

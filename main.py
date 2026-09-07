@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from core import (
-    aoto, config, dispatcher, feedback, osc_buttons, pcbrowser, pixelhue, progress, state, touch,
+    aoto, aotopresets, config, dispatcher, feedback, osc_buttons, pcbrowser, pixelhue, progress, state, touch,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -24,6 +24,7 @@ async def lifespan(app: FastAPI):
     # feedback poller and the PC ping sweep (which redraws pages as hosts change).
     pcbrowser.refresh_catalog()
     aoto.refresh()
+    aotopresets.refresh()
     touch.refresh()
     osc_buttons.refresh()
     dispatcher.render_page(config.DEFAULT_PAGE)

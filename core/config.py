@@ -118,6 +118,18 @@ AOTO_HDR_MODES = [              # (button label, hdrSetting value)
     ("PQ", 4),
 ]
 
+# --- Aoto presets (a folder/file browser of parameter presets) -------------
+# Each AOTO group gets a "Пресеты" submenu browsing the on-disk tree under
+# AOTO_PRESETS_DIR, which mirrors menus/: folders = preset groups, *.json files
+# = presets. A preset file is a SELF-CONTAINED JSON list of parameters, each
+# { "name", "set": {path, key, value, [method], [extra]}, "get": {path, field} }
+# -- apply POSTs every set.body {key: value, **extra} to every controller of
+# the group. "get" (optional) is used to CAPTURE the current state into a new
+# preset. parameters.json (optional; template parameters.example.json) lists
+# the available parameters for capture -- add new ones there as the parameter
+# list grows (no code changes). See core/aotopresets.py.
+AOTO_PRESETS_DIR = AOTO_DIR / "presets"
+
 # --- PixelHue Q8 LED-processor control (an "PixelHue" tab over HTTP) -------
 # One device (a Q8/P10/P20/P80 node). Auth is a JWT (HS256, payload {SN},
 # secret = startTime from node/open-detail) rebuilt automatically after a
