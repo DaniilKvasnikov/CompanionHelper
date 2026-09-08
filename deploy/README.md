@@ -38,6 +38,32 @@ schtasks /Run /TN "CompanionHelper"
 
 Run **`uninstall-autostart.bat` as administrator** (deletes the task).
 
+## Verifying it actually runs as administrator
+
+PDQ deploys need an elevated server, so confirm the whole chain:
+
+1. **Task level.** `schtasks /Query /TN "CompanionHelper" /V /FO LIST` must show
+   `Run Level: Highest` and `Task To Run` pointing at
+   `start-companionhelper.bat`. If the level is not Highest, re-run
+   `install-autostart.bat` from an elevated prompt.
+2. **The wrapper never runs unelevated.** `start-companionhelper.bat` checks its
+   process integrity level on every start and, when not elevated (started by
+   hand without "Run as administrator", or a misconfigured task), relaunches
+   itself as administrator (one UAC prompt) before starting the server.
+3. **Evidence log.** Each start appends to
+   `%LOCALAPPDATA%\CompanionHelper\startup.log`, ending with an `Elevated: OK`
+   line (or a line saying it relaunched). If you see no `Elevated: OK`, the
+   process is running without admin rights.
+4. **Live check** in the server console:
+   ```
+   whoami /groups | findstr S-1-16-12288
+   ```
+   prints `High Mandatory Level` when the process is elevated.
+
+Note: the logon user must be a **local administrator** — `/RL HIGHEST` can only
+elevate within that user's rights, and UAC self-elevation needs an admin
+account too.
+
 ## Notes
 
 - **Logon vs. boot.** The task triggers at *logon* because Companion is a GUI
