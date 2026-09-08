@@ -403,7 +403,29 @@ def test_brightness_status_button_shows_cached_value(bright, monkeypatch):
     monkeypatch.setattr(aoto, "_request", lambda a, c: (True, 227))
     node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
     aoto._brightness_children(node)[0].on_press()              # re-poll -> cache
-    assert aoto._brightness_children(node)[0].label == "Яркость\n227"
+    # default ceiling 1500 -> 227 nits is 15% of it
+    assert aoto._brightness_children(node)[0].label == "Яркость\n227 (15%)"
+
+
+def test_brightness_text_percent_of_group_file_max(bright, monkeypatch):
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": 1000})     # from "@max = 1000"
+    st = {"label": "Яркость", "response_field": "obj.brightness"}
+    assert aoto._brightness_text("Зал1", st, [("a", True, 250), ("b", True, 250)]) == "250 (25%)"
+
+
+def test_brightness_text_range_and_partial(bright, monkeypatch):
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": 1000})
+    st = {"label": "Яркость", "response_field": "obj.brightness"}
+    res = [("a", True, 800), ("b", True, 600), ("c", False, None)]
+    assert aoto._brightness_text("Зал1", st, res) == "600-800 (60-80%) (2/3)"
+
+
+def test_brightness_text_degrades_without_limit_or_numbers(bright, monkeypatch):
+    st = {"label": "Яркость", "response_field": "obj.brightness"}
+    # unknown max (file unset, config limit disabled to 0) -> plain aggregation
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": None})
+    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_LIMITS", {"Зал1": 0})
+    assert aoto._brightness_text("Зал1", st, [("a", True, 227), ("b", True, 227)]) == "227"
 
 
 # --- Dynamic Range (HDR) control ------------------------------------------

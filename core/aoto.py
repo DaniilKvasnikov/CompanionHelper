@@ -446,6 +446,30 @@ def _percent_step(limit: int) -> int:
     return max(1, round(limit * AOTO_BRIGHTNESS_PERCENT / 100))
 
 
+def _brightness_text(group: str, cmd: dict, results) -> str:
+    """Brightness line for the status button: nits plus, in brackets, the percentage
+    of the group's maximum ('@max' in the group file / config). E.g. "1496 (100%)"
+    or "1200-1500 (80-100%)" when the controllers disagree."""
+    limit = brightness_limit(group)
+    n_ok = sum(1 for _a, ok, _v in results if ok)
+    vals = [_map(cmd, v) for _a, ok, v in results if ok and v is not None]
+    if not vals:
+        return "ERR"
+    nums = [v for v in vals if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    if not nums or len(nums) != len(vals) or limit <= 0:
+        return _status_text(cmd, results)          # non-numeric / unknown max -> as before
+    if len(set(nums)) == 1:
+        value = nums[0]
+        text = f"{_num(value)} ({round(value / limit * 100)}%)"
+    else:
+        lo, hi = min(nums), max(nums)
+        pct_lo, pct_hi = round(lo / limit * 100), round(hi / limit * 100)
+        text = f"{_num(lo)}-{_num(hi)} ({pct_lo}-{pct_hi}%)"
+    if n_ok != len(results):
+        text += f" ({n_ok}/{len(results)})"
+    return text
+
+
 def _set_brightness_cmd(value: int) -> dict:
     return {"method": "POST", "path": AOTO_SET_BRIGHTNESS_PATH,
             "body": {AOTO_SET_BRIGHTNESS_KEY: value}}
@@ -491,7 +515,7 @@ def _brightness_children(node) -> list:
     out: list = []
     if status:                                       # current brightness; press re-polls
         results = _cached_results(group, status["label"])
-        text = _status_text(status, results) if results else ""
+        text = _brightness_text(group, status, results) if results else ""
         out.append(ActionNode(
             name="brightness", label=f"Яркость\n{text}" if text else "Яркость",
             kind=Kind.COMMAND, after=After.RERENDER, color_fn=_green,
