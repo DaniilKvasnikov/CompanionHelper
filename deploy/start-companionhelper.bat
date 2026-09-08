@@ -29,13 +29,15 @@ echo [%date% %time%] === CompanionHelper start === >> "%LOG%"
 REM ---- elevation guard ----------------------------------------------------
 REM S-1-16-12288 = "High Mandatory Level": present only in an elevated process.
 whoami /groups 2>nul | findstr /C:"S-1-16-12288" >nul
-if %errorlevel% neq 0 (
-  echo [%date% %time%] NOT elevated - relaunching as administrator >> "%LOG%"
-  echo This server needs administrator rights (PDQ deploys).
-  echo Relaunching as administrator... please confirm the UAC prompt.
-  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-  exit /b
-)
+if %errorlevel% equ 0 goto :elevated
+
+echo [%date% %time%] NOT elevated - relaunching as administrator >> "%LOG%"
+echo This server needs administrator rights for PDQ deploys.
+echo Relaunching as administrator... confirm the UAC prompt.
+powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+exit /b
+
+:elevated
 echo [%date% %time%] Elevated: OK >> "%LOG%"
 
 if exist "%~dp0..\.venv\Scripts\python.exe" (
