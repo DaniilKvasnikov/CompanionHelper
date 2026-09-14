@@ -220,6 +220,24 @@ def mapping_enabled() -> int | None:
         return _mapping
 
 
+def node_state() -> tuple[dict | None, str | None]:
+    """The cached node/detail data and why the last poll failed (None = fine)."""
+    with _lock:
+        return _node, _last_err
+
+
+def address() -> str:
+    """The device this tab talks to, e.g. '192.168.200.161:8088'."""
+    return f"{PIXELHUE_HOST}:{PIXELHUE_PORT}"
+
+
+def refresh_now() -> None:
+    """Re-read node / mapping / screens / presets from the device right now.
+
+    Called on a press of the status button and by the status page's refresher."""
+    _pull_all()
+
+
 def _screen_by_id(screen_id: int) -> Screen | None:
     return next((s for s in screens() if s.screen_id == screen_id), None)
 
@@ -427,7 +445,7 @@ def _apply_preset(guid: str) -> str:
 
 
 def _refresh_now() -> str:
-    _pull_all()
+    refresh_now()
     return ""
 
 

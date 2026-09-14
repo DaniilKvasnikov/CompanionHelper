@@ -41,6 +41,7 @@ _lists: list[str] = []                    # all target-list names (cached)
 _packages: list[str] = []                 # all package names (cached)
 _members: dict[str, list[str]] = {}       # list name -> hosts (cached)
 _ping: dict[str, bool] = {}               # host -> reachable
+_ping_at: float | None = None             # monotonic time of the last finished sweep
 _aliases: dict[str, str] = {}             # host/ip -> display alias (from file)
 
 
@@ -159,6 +160,7 @@ def _ping_host(host: str) -> bool:
 
 
 def _ping_sweep() -> None:
+    global _ping_at
     hosts = members()
     if not hosts:
         return
@@ -166,14 +168,26 @@ def _ping_sweep() -> None:
         results = dict(zip(hosts, ex.map(_ping_host, hosts)))
     with _lock:
         _ping.update(results)
+        _ping_at = time.monotonic()
+
+
+def status(host: str) -> bool | None:
+    """Last ping result for a host: True reachable, False not, None never pinged."""
+    with _lock:
+        return _ping.get(host)
+
+
+def ping_age() -> float | None:
+    """Seconds since the last ping sweep, or None when none has finished yet."""
+    with _lock:
+        return None if _ping_at is None else time.monotonic() - _ping_at
 
 
 def pc_color(host: str):
-    with _lock:
-        status = _ping.get(host)
-    if status is True:
+    result = status(host)
+    if result is True:
         return PC_UP
-    if status is False:
+    if result is False:
         return PC_DOWN
     return PC_UNKNOWN
 

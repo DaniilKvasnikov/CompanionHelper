@@ -199,6 +199,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_PULL_TIMEOUT = 60.0    # seconds, for the git pull
 RESTART_DELAY = 1.5        # seconds after a pull before restarting (lets the deck render)
 
+# --- Web status page -------------------------------------------------------
+# A READ-ONLY page in a browser (GET /) showing the live state of every knob the
+# deck can turn: the Aoto parameters of every group, the PixelHue flags/screens,
+# and the ping status of the active PDQ list's PCs. The page polls GET /status
+# (a JSON snapshot) once a second; the snapshot itself is rebuilt by a background
+# thread that re-reads the devices every WEB_REFRESH_INTERVAL seconds -- but ONLY
+# while a page is actually watching (a request within WEB_IDLE_TIMEOUT), so a
+# closed tab costs nothing. Nothing on the page writes to a device. The page
+# markup lives in WEB_PAGE and is re-read per request, so it can be edited
+# without restarting the server. See core/webstatus.py.
+WEB_PAGE = PROJECT_ROOT / "web" / "index.html"
+WEB_REFRESH_INTERVAL = 2.0   # seconds between device reads while a page watches
+WEB_IDLE_TIMEOUT = 15.0      # seconds after the last page request before reads stop
+
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {
     Kind.MENU:     ("#12233b", "#ffffff"),  # submenu / folder

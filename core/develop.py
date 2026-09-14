@@ -1,11 +1,14 @@
-"""Develop tab: pull the latest project changes and restart the server.
+"""Develop tab: pull the latest project changes, restart the server, open the status page.
 
-A "Develop" main-menu tab with a single button that runs `git pull` in the
-project root and, on success, restarts this process (os.execv) so the new code
-takes effect. The pull result is shown on the button first; the restart is
-scheduled a moment later (RESTART_DELAY) so the deck renders that text before
-the process is replaced. Fail-soft: a failed pull becomes button text, never a
-crash, and does not restart. See CLAUDE.md for the conventions.
+A "Develop" main-menu tab. **Pull & Restart** runs `git pull` in the project
+root and, on success, restarts this process (os.execv) so the new code takes
+effect. The pull result is shown on the button first; the restart is scheduled a
+moment later (RESTART_DELAY) so the deck renders that text before the process is
+replaced. **Открыть статус** opens the read-only web status page
+(core/webstatus.py) in this machine's default browser -- convenient on the
+server machine, where the deck has no screen. Fail-soft: a failed pull or a
+missing browser becomes button text, never a crash; a failed pull does not
+restart. See CLAUDE.md for the conventions.
 """
 from __future__ import annotations
 
@@ -14,7 +17,9 @@ import os
 import subprocess
 import sys
 import threading
+import webbrowser
 
+from . import webstatus
 from .config import GIT_PULL_TIMEOUT, PROJECT_ROOT, RESTART_DELAY
 from .constants import After, Kind
 from .model import ActionNode, MenuNode
@@ -54,6 +59,18 @@ def pull_and_restart() -> str:
     return f"{summary}\nrestart..."
 
 
+def open_status_page() -> str:
+    """Open the read-only web status page in this machine's default browser."""
+    url = webstatus.page_url()
+    try:
+        opened = webbrowser.open(url)
+    except Exception as e:  # noqa: BLE001 - a missing browser must not crash the deck
+        log.warning("opening %s failed: %s", url, e)
+        return f"ERR\n{str(e)[:40]}"
+    log.info("opened the status page: %s", url)
+    return "OK" if opened else "ERR\nнет браузера"
+
+
 # --- menu tree ------------------------------------------------------------
 def attach(root: MenuNode) -> None:
     """Insert the Develop menu at the end of the main menu."""
@@ -67,5 +84,9 @@ def _develop_children(node) -> list:
         ActionNode(
             name="pull-restart", label="Pull &\nRestart", kind=Kind.COMMAND,
             after=After.TEXT, on_press=pull_and_restart,
-        )
+        ),
+        ActionNode(
+            name="status-page", label="Открыть\nстатус", kind=Kind.COMMAND,
+            after=After.TEXT, on_press=open_status_page,
+        ),
     ]

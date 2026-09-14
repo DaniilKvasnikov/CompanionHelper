@@ -164,8 +164,8 @@ def _cached_results(group: str, label: str) -> list[tuple[str, bool, object]]:
 
 
 # --- HTTP -----------------------------------------------------------------
-def _request(addr: str, cmd: dict) -> tuple[bool, object]:
-    """Send one command to one controller. Returns (ok, value_or_None)."""
+def _send(addr: str, cmd: dict) -> tuple[bool, str]:
+    """Send one command to one controller. Returns (ok, raw reply body)."""
     url = f"http://{addr}{cmd.get('path', '')}"
     body = cmd.get("body")
     data = json.dumps(body).encode("utf-8") if body is not None else None
@@ -176,11 +176,37 @@ def _request(addr: str, cmd: dict) -> tuple[bool, object]:
     )
     try:
         with urllib.request.urlopen(req, timeout=AOTO_HTTP_TIMEOUT) as resp:
-            text = resp.read().decode("utf-8", "replace")
+            return (True, resp.read().decode("utf-8", "replace"))
     except Exception:  # noqa: BLE001 - unreachable/timeout/HTTP error
-        return (False, None)
+        return (False, "")
+
+
+def _request(addr: str, cmd: dict) -> tuple[bool, object]:
+    """Send one command to one controller. Returns (ok, value_or_None)."""
+    ok, text = _send(addr, cmd)
     field = cmd.get("response_field")
-    return (True, _extract(text, field) if field else None)
+    return (ok, _extract(text, field) if ok and field else None)
+
+
+def _parse(text: str):
+    """A reply body as JSON, or its first characters when it is not JSON."""
+    try:
+        return json.loads(text)
+    except Exception:  # noqa: BLE001 - a non-JSON body still shows something
+        return text.strip()[:12]
+
+
+def field_value(reply, path: str):
+    """Pull a dotted field (e.g. 'obj.brightness') out of an ALREADY-parsed reply.
+
+    The status page reads several fields from ONE reply (see probe_raw)."""
+    obj = reply
+    for part in path.split("."):
+        if isinstance(obj, dict) and part in obj:
+            obj = obj[part]
+        else:
+            return None
+    return obj
 
 
 def _extract(text: str, field: str):
@@ -189,12 +215,7 @@ def _extract(text: str, field: str):
         obj = json.loads(text)
     except Exception:  # noqa: BLE001
         return text.strip()[:12]
-    for part in field.split("."):
-        if isinstance(obj, dict) and part in obj:
-            obj = obj[part]
-        else:
-            return None
-    return obj
+    return field_value(obj, field)
 
 
 def _run(group: str, cmd: dict) -> list[tuple[str, bool, object]]:
@@ -226,6 +247,20 @@ def probe(group: str, cmd: dict) -> list[tuple[str, bool, object]]:
     return list(_run(group, cmd))
 
 
+def probe_raw(group: str, cmd: dict) -> list[tuple[str, bool, object]]:
+    """Read from every controller and keep each WHOLE parsed reply: (addr, ok, reply).
+
+    Like probe(), but for readers that pull several fields out of one call (the
+    status page shows a dozen parameters of the same getGlobalSettings reply, so
+    it sends ONE request per controller instead of one per parameter)."""
+    addrs = addresses(group)
+    if not addrs:
+        return []
+    with ThreadPoolExecutor(max_workers=AOTO_WORKERS) as ex:
+        pairs = list(ex.map(lambda a: _send(a, cmd), addrs))
+    return [(a, ok, _parse(text) if ok else None) for a, (ok, text) in zip(addrs, pairs)]
+
+
 def _action_text(results: list[tuple[str, bool, object]]) -> str:
     n = len(results)
     n_ok = sum(1 for _a, ok, _v in results if ok)
@@ -239,7 +274,7 @@ def _map(cmd: dict, value) -> object:
     return labels.get(str(value), value) if labels else value
 
 
-def _status_text(cmd: dict, results: list[tuple[str, bool, object]]) -> str:
+def status_text(cmd: dict, results: list[tuple[str, bool, object]]) -> str:
     """Aggregated status for a group: value / range / list, with a (k/n) on partial."""
     n = len(results)
     n_ok = sum(1 for _a, ok, _v in results if ok)
@@ -250,7 +285,7 @@ def _status_text(cmd: dict, results: list[tuple[str, bool, object]]) -> str:
     return shown if n_ok == n else f"{shown} ({n_ok}/{n})"
 
 
-def _values_differ(cmd: dict, results: list[tuple[str, bool, object]]) -> bool:
+def values_differ(cmd: dict, results: list[tuple[str, bool, object]]) -> bool:
     seen = {_num(_map(cmd, v)) for _a, ok, v in results if ok and v is not None}
     return len(seen) > 1
 
@@ -366,9 +401,9 @@ def _group_commands(node) -> list:
         # status button: value from cache; if the group disagrees, drill into a
         # per-controller breakdown, else press re-polls.
         results = _cached_results(group, label)
-        text = _status_text(cmd, results) if results else ""
+        text = status_text(cmd, results) if results else ""
         display = f"{label}\n{text}" if text else label
-        if _values_differ(cmd, results):
+        if values_differ(cmd, results):
             out.append(MenuNode(
                 name=label, path=None, label=display, provider=_status_detail,
                 context={"group": group, "cmd": cmd}, color_fn=_green,
@@ -457,7 +492,7 @@ def _brightness_text(group: str, cmd: dict, results) -> str:
         return "ERR"
     nums = [v for v in vals if isinstance(v, (int, float)) and not isinstance(v, bool)]
     if not nums or len(nums) != len(vals) or limit <= 0:
-        return _status_text(cmd, results)          # non-numeric / unknown max -> as before
+        return status_text(cmd, results)          # non-numeric / unknown max -> as before
     if len(set(nums)) == 1:
         value = nums[0]
         text = f"{_num(value)} ({round(value / limit * 100)}%)"

@@ -92,6 +92,24 @@ def test_pc_color_reflects_ping_state(catalog):
     assert pcbrowser.pc_color("PC-Z") == PC_UNKNOWN  # never pinged
 
 
+def test_status_and_ping_age(catalog, monkeypatch):
+    """status() is the data seam the status page reads (pc_color stays the deck's)."""
+    monkeypatch.setattr(pcbrowser, "_ping_at", None)
+    pcbrowser._ping.update({"PC-A": True, "PC-B": False})
+    assert pcbrowser.status("PC-A") is True
+    assert pcbrowser.status("PC-B") is False
+    assert pcbrowser.status("PC-Z") is None           # never pinged
+    assert pcbrowser.ping_age() is None               # no sweep finished yet
+
+    monkeypatch.setattr(pcbrowser, "_ping_host", lambda host: host == "PC-A")
+    monkeypatch.setattr(pcbrowser, "_members", {"L": ["PC-A", "PC-B"]})
+    monkeypatch.setattr(pcbrowser, "_active_list", "L")
+    monkeypatch.setattr(pcbrowser, "_lists", ["L"])
+    pcbrowser._ping_sweep()
+    assert pcbrowser.status("PC-A") is True and pcbrowser.status("PC-B") is False
+    assert pcbrowser.ping_age() is not None and pcbrowser.ping_age() >= 0
+
+
 def test_attach_inserts_pc_menu_at_top():
     root = MenuNode("", None, "", children=[MenuNode("other", None, "Other")])
     pcbrowser.attach(root)

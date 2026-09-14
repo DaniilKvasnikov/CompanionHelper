@@ -1,8 +1,9 @@
-"""develop: the pull-and-restart button.
+"""develop: the pull-and-restart and open-status-page buttons.
 
 git and the process restart are faked by monkeypatching develop._git_pull and
-develop._schedule_restart, so no real subprocess runs and the test process is
-never replaced.
+develop._schedule_restart, and the browser by monkeypatching
+develop.webbrowser.open, so no real subprocess runs, the test process is never
+replaced and no browser window opens.
 """
 from core import develop
 from core.constants import After, Kind
@@ -39,10 +40,31 @@ def test_attach_adds_develop_tab_at_end():
     assert root.children[-1].name == "__develop__"
 
 
-def test_develop_children_is_a_single_pull_restart_button():
+def test_develop_children_has_pull_restart_and_status_page():
     kids = develop._develop_children(None)
-    assert len(kids) == 1
-    btn = kids[0]
-    assert isinstance(btn, ActionNode)
-    assert btn.on_press is develop.pull_and_restart
-    assert btn.after == After.TEXT and btn.kind == Kind.COMMAND
+    assert [k.name for k in kids] == ["pull-restart", "status-page"]
+    assert all(isinstance(k, ActionNode) for k in kids)
+    assert all(k.after == After.TEXT and k.kind == Kind.COMMAND for k in kids)
+    assert kids[0].on_press is develop.pull_and_restart
+    assert kids[1].on_press is develop.open_status_page
+
+
+def test_open_status_page_opens_the_page_url(monkeypatch):
+    opened = []
+    monkeypatch.setattr(develop.webbrowser, "open", lambda url: opened.append(url) or True)
+    assert develop.open_status_page() == "OK"
+    assert opened == [develop.webstatus.page_url()]
+    assert opened[0].startswith("http://127.0.0.1:") and opened[0].endswith("/")
+
+
+def test_open_status_page_reports_a_missing_browser(monkeypatch):
+    monkeypatch.setattr(develop.webbrowser, "open", lambda url: False)
+    assert develop.open_status_page().startswith("ERR")
+
+
+def test_open_status_page_fails_soft(monkeypatch):
+    def boom(url):
+        raise RuntimeError("no browser here")
+
+    monkeypatch.setattr(develop.webbrowser, "open", boom)
+    assert develop.open_status_page().startswith("ERR")

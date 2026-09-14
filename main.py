@@ -3,15 +3,21 @@
 Every deck button is configured in Companion to POST its own location here on
 press. This server owns the menu state and redraws the deck via Companion's
 HTTP API. See CLAUDE.md and core/ for the architecture.
+
+It also serves a READ-ONLY status page (GET / for the page, GET /status for its
+JSON) showing the live state of the parameters the deck can turn; see
+core/webstatus.py.
 """
 import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from core import (
     aoto, aotopresets, config, dispatcher, feedback, osc_buttons, pcbrowser, pixelhue, progress, state, touch,
+    webstatus,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -37,6 +43,7 @@ async def lifespan(app: FastAPI):
     aoto.start(dispatcher.render_all_pages)    # poll Aoto status commands
     pixelhue.start(dispatcher.render_all_pages)  # poll PixelHue node/screens/presets
     progress.start(config.FEEDBACK_INTERVAL)  # tick the countdown once a second
+    webstatus.start()  # refresh the status page's data while a browser has it open
     yield
 
 
@@ -58,5 +65,18 @@ def reload_menus():
     return {"status": "reloaded"}
 
 
+@app.get("/", response_class=HTMLResponse)
+def status_page():
+    """The read-only status page (web/index.html, re-read on every request)."""
+    return HTMLResponse(webstatus.page_html())
+
+
+@app.get("/status")
+def status_data():
+    """The page's JSON snapshot. Answers instantly -- the reads happen in the background."""
+    return webstatus.snapshot()
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host=config.HOST, port=config.PORT)
+

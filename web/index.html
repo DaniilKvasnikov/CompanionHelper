@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompanionHelper — статусы</title>
+<style>
+  :root {
+    --bg: #101215; --card: #181c22; --line: #272e38; --text: #dde1e6;
+    --dim: #8b949e; --ok: #4ec97b; --mixed: #f0b429; --bad: #ff7b72; --unknown: #616a76;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 3rem; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  header.top {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: 1rem;
+    flex-wrap: wrap; padding: .9rem 1.1rem; background: rgba(16,18,21,.94);
+    border-bottom: 1px solid var(--line); backdrop-filter: blur(6px);
+  }
+  header.top h1 { margin: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: .01em; }
+  #meta { color: var(--dim); font-variant-numeric: tabular-nums; }
+  #meta b { color: var(--text); font-weight: 600; }
+  #banner {
+    margin: .7rem 1.1rem 0; padding: .55rem .8rem; border-radius: 8px;
+    background: #3a1d1d; border: 1px solid #6b2b2b; color: #ffb4ae;
+  }
+  main { padding: .9rem 1.1rem 0; }
+  section { margin-bottom: 1.4rem; }
+  section > h2 {
+    display: flex; align-items: baseline; gap: .6rem; margin: 0 0 .55rem;
+    font-size: .82rem; font-weight: 600; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--dim);
+  }
+  section > h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .5rem .7rem .6rem; margin-bottom: .6rem; }
+  .card > h3 { margin: .2rem 0 .45rem; font-size: .95rem; font-weight: 600; }
+  .row {
+    display: grid; grid-template-columns: minmax(9rem, 1.1fr) minmax(6rem, 1fr) auto;
+    align-items: baseline; gap: .5rem; padding: .3rem .2rem .3rem .55rem;
+    border-top: 1px solid rgba(255,255,255,.045); border-left: 3px solid var(--unknown);
+  }
+  .row:first-child { border-top: 0; }
+  .row.ok { border-left-color: var(--ok); }
+  .row.mixed, .row.partial { border-left-color: var(--mixed); }
+  .row.error { border-left-color: var(--bad); }
+  .row .label { color: var(--text); }
+  .row .value { font-variant-numeric: tabular-nums; }
+  .row .value .pct { color: var(--dim); }
+  .row .state { font-size: .76rem; color: var(--dim); white-space: nowrap; }
+  .row.ok .state { color: var(--ok); }
+  .row.mixed .state, .row.partial .state { color: var(--mixed); }
+  .row.error .state { color: var(--bad); }
+  .detail { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .25rem; }
+  .ctl {
+    font-size: .76rem; font-variant-numeric: tabular-nums; padding: .1rem .4rem;
+    border-radius: 5px; background: #21262d; color: var(--dim);
+  }
+  .ctl.bad { background: #2d1a1a; color: #ff9d97; }
+  .grid { display: grid; gap: .45rem; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
+  .chip {
+    display: flex; align-items: center; gap: .5rem; padding: .4rem .55rem;
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .chip .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--unknown); flex: 0 0 auto; }
+  .chip.up .dot { background: var(--ok); box-shadow: 0 0 6px rgba(78,201,123,.6); }
+  .chip.down .dot { background: var(--bad); }
+  .chip .names { min-width: 0; flex: 1 1 auto; }
+  .chip .alias { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip .host { font-size: .76rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .chip .ago { font-size: .72rem; color: var(--dim); white-space: nowrap; }
+  .badges { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; }
+  .badge {
+    display: inline-flex; align-items: baseline; gap: .35rem; padding: .22rem .55rem;
+    border-radius: 6px; background: #21262d; border: 1px solid var(--line);
+    font-size: .82rem; font-variant-numeric: tabular-nums;
+  }
+  .badge .k { color: var(--dim); }
+  .badge.ok { background: #14291d; border-color: #24512f; }
+  .badge.ok .k { color: #8affc1; }
+  .badge.error { background: #2d1a1a; border-color: #5a2626; }
+  .badge.error .k { color: #ff9d97; }
+  .badge.mixed { background: #2c2413; border-color: #5a4a1c; }
+  .screens { width: 100%; border-collapse: collapse; }
+  .screens th, .screens td { text-align: left; padding: .28rem .5rem .28rem 0; font-weight: 400; }
+  .screens th { color: var(--dim); font-size: .76rem; text-transform: uppercase; letter-spacing: .06em; }
+  .screens td { border-top: 1px solid rgba(255,255,255,.045); font-variant-numeric: tabular-nums; }
+  .on { color: var(--ok); } .off { color: var(--dim); } .mix { color: var(--mixed); }
+  .hint { color: var(--dim); }
+  .err { color: #ff9d97; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>CompanionHelper · статусы</h1>
+  <div id="meta">загрузка…</div>
+</header>
+<div id="banner" hidden></div>
+<main>
+  <section id="pc"></section>
+  <section id="aoto"></section>
+  <section id="pixelhue"></section>
+</main>
+
+<script>
+"use strict";
+
+// How often the browser asks the server. The server itself re-reads the devices
+// on its own interval (shown in the header) and always answers instantly.
+const POLL_MS = 1000;
+
+const STATE_LABEL = {
+  ok: "ок", mixed: "расхождение", partial: "частично", error: "ошибка", unknown: "нет данных",
+};
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+
+function ago(sec) {
+  if (sec === null || sec === undefined) return "";
+  return sec < 90 ? Math.round(sec) + " с" : Math.round(sec / 60) + " мин";
+}
+
+function fmt(v) {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "boolean") return v ? "вкл" : "выкл";
+  return String(v);
+}
+
+function shortAddr(addr) {
+  const host = String(addr).split(":")[0];
+  const parts = host.split(".");
+  return parts.length === 4 ? "." + parts[3] : host;
+}
+
+function header(title, note) {
+  const h = el("h2", null, title);
+  if (note) h.append(el("span", null, note));
+  return h;
+}
+
+// --- PC ---------------------------------------------------------------------
+function renderPc(box, pc) {
+  box.replaceChildren(header("ПК", pc.active_list ? "лист: " + pc.active_list : "лист не выбран"));
+  if (!pc.hosts.length) {
+    box.append(el("div", "hint", "нет хостов в активном списке PDQ"));
+    return;
+  }
+  const grid = el("div", "grid");
+  for (const h of pc.hosts) {
+    const cls = h.up === true ? "up" : (h.up === false ? "down" : "unknown");
+    const chip = el("div", "chip " + cls);
+    chip.append(el("span", "dot"));
+    const names = el("div", "names");
+    names.append(el("div", "alias", h.alias || h.host));
+    if (h.alias) names.append(el("div", "host", h.host));
+    chip.append(names);
+    if (h.up === null || h.up === undefined) chip.append(el("span", "ago", "не пингован"));
+    else if (pc.checked_ago !== null && pc.checked_ago !== undefined) {
+      chip.append(el("span", "ago", ago(pc.checked_ago)));
+    }
+    grid.append(chip);
+  }
+  box.append(grid);
+}
+
+// --- AOTO -------------------------------------------------------------------
+function paramRow(p) {
+  const row = el("div", "row " + p.state);
+  row.append(el("div", "label", p.label));
+  const value = el("div", "value");
+  value.append(el("span", "num", fmt(p.value)));
+  if (p.percent) value.append(el("span", "pct", " · " + p.percent));
+  row.append(value);
+  row.append(el("div", "state", STATE_LABEL[p.state] || p.state));
+  if (p.controllers.length > 1 && p.state !== "ok") {
+    const detail = el("div", "detail");
+    for (const c of p.controllers) {
+      detail.append(el("span", "ctl" + (c.ok ? "" : " bad"),
+        shortAddr(c.addr) + " " + (c.ok ? fmt(c.value) : "нет ответа")));
+    }
+    row.append(detail);
+  }
+  return row;
+}
+
+function renderAoto(box, groups) {
+  const note = groups.length ? groups.length + " групп" : "";
+  box.replaceChildren(header("AOTO", note));
+  if (!groups.length) {
+    box.append(el("div", "hint", "нет групп — добавьте файл в aoto/groups/"));
+    return;
+  }
+  for (const g of groups) {
+    const card = el("div", "card");
+    card.append(el("h3", null, g.group));
+    for (const p of g.params) card.append(paramRow(p));
+    box.append(card);
+  }
+}
+
+// --- PixelHue ---------------------------------------------------------------
+function flagOf(screens, key) {
+  if (!screens.length) return null;
+  const vals = screens.map((s) => s[key]);
+  const all = vals.every((v) => v === vals[0]);
+  if (!all) return "mix";
+  return vals[0] === 1 ? 1 : 0;
+}
+
+function flagClass(v) {
+  if (v === "mix") return "mixed";
+  return v === 1 ? "ok" : "";
+}
+
+function flagWord(v) {
+  if (v === "mix") return "частично";
+  return v === 1 ? "вкл" : (v === 0 ? "выкл" : "…");
+}
+
+function renderPixelHue(box, ph) {
+  box.replaceChildren(header("PixelHue", ph.host));
+  const card = el("div", "card");
+  const badges = el("div", "badges");
+
+  const onlineCls = ph.online === 1 ? "ok" : (ph.online === 0 ? "error" : "");
+  const onlineWord = ph.online === 1 ? "online" : (ph.online === 0 ? "offline" : "нет данных");
+  const online = el("div", "badge " + onlineCls);
+  online.append(el("span", "k", "узел"));
+  online.append(el("span", null, onlineWord + (ph.version ? " · " + ph.version : "")));
+  badges.append(online);
+
+  const mapping = el("div", "badge " + (ph.mapping === 1 ? "ok" : ""));
+  mapping.append(el("span", "k", "Mapping"));
+  mapping.append(el("span", null, ph.mapping === 1 ? "вкл" : (ph.mapping === 0 ? "выкл" : "…")));
+  badges.append(mapping);
+
+  for (const [name, key] of [["FTB", "ftb"], ["Freeze", "freeze"]]) {
+    const v = flagOf(ph.screens, key);
+    const badge = el("div", "badge " + flagClass(v));
+    badge.append(el("span", "k", name));
+    badge.append(el("span", null, flagWord(v)));
+    badges.append(badge);
+  }
+
+  const presets = el("div", "badge");
+  presets.append(el("span", "k", "пресеты"));
+  presets.append(el("span", null, ph.presets));
+  badges.append(presets);
+
+  if (ph.error) {
+    const err = el("div", "badge error");
+    err.append(el("span", "k", "ошибка"));
+    err.append(el("span", null, ph.error));
+    badges.append(err);
+  }
+  card.append(badges);
+
+  if (ph.screens.length) {
+    const table = el("table", "screens");
+    const head = el("tr");
+    for (const t of ["экран", "Freeze", "FTB"]) head.append(el("th", null, t));
+    table.append(head);
+    for (const s of ph.screens) {
+      const tr = el("tr");
+      tr.append(el("td", null, s.name));
+      tr.append(el("td", s.freeze === 1 ? "on" : "off", s.freeze === 1 ? "вкл" : "выкл"));
+      tr.append(el("td", s.ftb === 1 ? "on" : "off", s.ftb === 1 ? "вкл" : "выкл"));
+      table.append(tr);
+    }
+    card.append(table);
+  } else {
+    card.append(el("div", "hint", "экраны не прочитаны"));
+  }
+  box.append(card);
+}
+
+// --- polling ----------------------------------------------------------------
+const meta = document.getElementById("meta");
+const banner = document.getElementById("banner");
+let failures = 0;
+
+function renderMeta(d) {
+  const bits = [];
+  if (d.age === null || d.age === undefined) bits.push("данные ещё не прочитаны");
+  else bits.push("данные обновлены " + ago(d.age) + " назад");
+  bits.push("сервер читает устройства каждые " + d.interval + " с");
+  if (d.read_at) bits.push("в " + d.read_at);
+  meta.textContent = bits.join(" · ");
+}
+
+function renderBanner(d) {
+  if (failures > 0) {
+    banner.hidden = false;
+    banner.textContent = "нет связи с сервером (" + failures + " " +
+      (failures === 1 ? "неудачный запрос" : "неудачных запросов") + ") — показаны последние данные";
+  } else if (d.stale) {
+    banner.hidden = false;
+    banner.textContent = "данные не обновляются: последнее чтение " + ago(d.age) + " назад";
+  } else {
+    banner.hidden = true;
+  }
+}
+
+function render(d) {
+  renderMeta(d);
+  renderBanner(d);
+  renderPc(document.getElementById("pc"), d.pc || {hosts: [], active_list: null, checked_ago: null});
+  renderAoto(document.getElementById("aoto"), d.aoto || []);
+  renderPixelHue(document.getElementById("pixelhue"),
+    d.pixelhue || {host: "", screens: [], presets: 0, mapping: null, online: null});
+}
+
+async function tick() {
+  try {
+    const resp = await fetch("/status", {cache: "no-store"});
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    render(await resp.json());
+    failures = 0;
+  } catch (e) {
+    failures += 1;
+    renderBanner({stale: true, age: null});
+  }
+  setTimeout(tick, POLL_MS);
+}
+
+tick();
+</script>
+</body>
+</html>

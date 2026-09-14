@@ -262,6 +262,23 @@ def test_pull_failure_keeps_screens_but_marks_node_offline(state, monkeypatch):
 
 
 # --- actions ----------------------------------------------------------------
+def test_refresh_now_and_node_state_are_the_public_seams(state, monkeypatch):
+    """The status page reads node_state() and forces a re-read with refresh_now()."""
+    assert pixelhue.node_state() == (None, None)
+    calls = []
+
+    def fake(method, path, body=None, retried=False):
+        calls.append(path)
+        if "node/detail" in path:
+            return True, {"online": 1, "version": "V2.0.0"}
+        return True, {}
+
+    monkeypatch.setattr(pixelhue, "_request", fake)
+    pixelhue.refresh_now()
+    assert len(calls) == 4                       # node + mapping + screens + presets
+    node, err = pixelhue.node_state()
+    assert node == {"online": 1, "version": "V2.0.0"} and err is None
+
 def test_take_sends_full_body_and_summary(state, monkeypatch):
     monkeypatch.setattr(pixelhue, "_screens", [_screen(6, "Screen 1")])
     seen = {}

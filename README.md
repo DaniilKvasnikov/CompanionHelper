@@ -36,8 +36,9 @@ Two transports, opposite directions:
 - **"Touch" menu** — trigger clips/files in [TouchDesigner](https://derivative.ca/) over OSC, grouped by file. Pick a group, then a button; each press fires one OSC message (default `127.0.0.1:7777`) carrying the button's filename. Each group targets its own OSC address (an `@address = /path` line in the group file), so different groups can drive different things. The tab also has top-level buttons (`file`/`base`/`fps`) that fire a no-argument OSC message to an address named after them.
 - **"PixelHue" menu** — control a PixelHue Q8 (also P10/P20/P80) LED video processor over HTTP (API notes in [`PIXELHUE_API_GUIDE.md`](PIXELHUE_API_GUIDE.md)). One device per install (`PIXELHUE_HOST`/`PORT` in `core/config.py`, per machine via `config.local.json`); auth is a passwordless JWT rebuilt automatically after a device reboot. The tab shows node status, global **FTB**/**Freeze** toggles for all real output screens at once, a **Mapping** toggle (the PixelFlow "Device → Location → Mapping" switch; `PUT /unico/v1/node/interface-location`), a per-screen submenu (**Take / Cut / Freeze / FTB**; MVR multi-viewer screens are hidden), and the device's **preset list** (applied to the program region). Screens and presets are polled in the background so the toggle states light up truthfully.
 - **"Sync" menu** — run [FreeFileSync](https://freefilesync.org/) batch jobs from the deck. Configure jobs as `(label, path-to-.ffs_batch)` pairs; each press runs `FreeFileSync.exe` on that batch and shows the result.
-- **"Develop" menu** — a single button that runs `git pull` on the project and restarts the server so the new code takes effect, straight from the deck.
+- **"Develop" menu** — **Pull & Restart** runs `git pull` on the project and restarts the server so the new code takes effect, and **Открыть статус** opens the **web status page** in this machine's browser, straight from the deck.
 - **Progress variable** — a Companion custom variable `$(custom:Progress)` filled 0→100 as the next auto-refresh approaches, so an auto-updating page can show a progress bar.
+- **Web status page** — open `http://<this machine>:7878/` in a browser to watch the live state of everything the deck can turn: every Aoto parameter of every group (brightness in nits *and* % of the group's `@max` ceiling, HDR, gamma, colour temperature, screen-test values, … aggregated across the controllers exactly as the deck shows them, with a per-controller breakdown when they disagree), the PixelHue node/flags/screens/presets, and the ping status of the PCs in the active PDQ list. It is **read-only** — nothing on it writes to a device or to the deck. The page polls the server once a second, and while a tab is open the server re-reads the devices every `WEB_REFRESH_INTERVAL` (2 s) and shows how old the data is; close the tab and the extra polling stops (`WEB_IDLE_TIMEOUT`).
 
 ## Menu tree conventions
 
@@ -80,6 +81,7 @@ python main.py                    # serves on 0.0.0.0:7878
 
 - `POST /press?page=&row=&col=` — called by every deck button on press.
 - `POST /reload` — rebuild the menu tree from disk and redraw active pages (use after editing `menus/`).
+- `GET /` — the read-only **web status page**; `GET /status` — the JSON it renders (see the feature list above).
 
 All tunables — ports, PDQ paths, timeouts, colors, intervals, grid size — have their **defaults** in [`core/config.py`](core/config.py).
 
@@ -103,7 +105,7 @@ python -m pytest                       # ~0.6s, no live Companion/PDQ needed
 python -m pytest tests/test_pdq.py -q  # a single file
 ```
 
-The suite covers the pure/near-pure layer — layout math, menu-tree resolution, PDQ argument building and DB reads, the OSC wire encoding, dispatcher press/nav, the dynamic menus, and the progress math — with Companion, the PDQ CLI/DB, ping, and scripts all faked.
+The suite covers the pure/near-pure layer — layout math, menu-tree resolution, PDQ argument building and DB reads, the OSC wire encoding, dispatcher press/nav, the dynamic menus, the status page's snapshot/read-plan, and the progress math — with Companion, the PDQ CLI/DB, ping, and scripts all faked.
 
 ## Project layout
 
@@ -126,11 +128,13 @@ core/
   touch.py         the "Touch" TouchDesigner OSC menu
   pixelhue.py      the "PixelHue" Q8 HTTP-control tab (node/screens/presets)
   ffs.py           the "Sync" FreeFileSync batch-job tab
-  develop.py       the "Develop" git-pull + restart tab
+  develop.py       the "Develop" git-pull + restart / open-status-page tab
   progress.py      the $(custom:Progress) refresh progress bar
+  webstatus.py     the read-only web status page (GET / and /status)
   feedback.py      background poller for feedback buttons
   state.py         per-page navigation state
 menus/             the menu hierarchy (folders = submenus, files = buttons)
+web/               the status page markup (index.html; edit it without restarting)
 aoto/              Aoto groups (groups/*.txt), commands (commands.json) and parameter presets (presets/)
 touch/             Touch groups (groups/*.txt, "label = filename" per line)
 pc_aliases.example.txt  template for pc_aliases.txt (see "Machine-local configuration")

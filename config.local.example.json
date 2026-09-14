@@ -19,6 +19,10 @@
   "PIXELHUE_HOST": "192.168.200.161",
   "PIXELHUE_PORT": 8088,
 
+  "_web": "The read-only status page (http://<this machine>:7878/). While a browser has it open, the devices are re-read every WEB_REFRESH_INTERVAL seconds; raise it on a machine whose controllers dislike the extra polling. Reads stop WEB_IDLE_TIMEOUT seconds after the last page request.",
+  "WEB_REFRESH_INTERVAL": 2,
+  "WEB_IDLE_TIMEOUT": 15,
+
   "_ffs": "FreeFileSync is per-machine: the exe path and which batch jobs belong to this machine. FFS_JOBS is an array of [label, path-to-.ffs_batch] pairs.",
   "FFS_EXE": "C:/Program Files/FreeFileSync/FreeFileSync.exe",
   "FFS_TIMEOUT": 600,

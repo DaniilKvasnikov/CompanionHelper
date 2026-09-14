@@ -61,6 +61,52 @@ def test_extract_dotted_path():
     assert aoto._extract("not json", "data.type") == "not json"
 
 
+def test_field_value_walks_a_parsed_reply():
+    reply = {"code": 0, "obj": {"brightness": 1200, "hdrSetting": 2}}
+    assert aoto.field_value(reply, "obj.brightness") == 1200
+    assert aoto.field_value(reply, "code") == 0
+    assert aoto.field_value(reply, "obj.nope") is None
+    assert aoto.field_value("not json", "obj.brightness") is None  # not a dict
+
+
+def test_parse_json_or_truncated_text():
+    assert aoto._parse('{"a": 1}') == {"a": 1}
+    assert aoto._parse("oops") == "oops"
+
+
+def test_send_is_raw_and_request_extracts_one_field(catalog, monkeypatch):
+    monkeypatch.setattr(aoto, "_send", lambda addr, cmd: (True, '{"obj": {"brightness": 500}}'))
+    assert aoto._send("10.0.0.1:8080", {"path": "/x"})[1].startswith("{")   # untouched body
+    assert aoto._request("10.0.0.1:8080", {"path": "/x", "response_field": "obj.brightness"}) == (True, 500)
+    assert aoto._request("10.0.0.1:8080", {"path": "/x"}) == (True, None)   # no field asked for
+
+
+def test_probe_raw_keeps_the_whole_reply(catalog, monkeypatch):
+    """One request per controller serves every field the caller wants."""
+    replies = {"10.0.0.1:8080": '{"obj": {"brightness": 1200, "gammaCoefficient": 2.2}}',
+               "10.0.0.2:8080": '{"obj": {"brightness": 800, "gammaCoefficient": 2.2}}'}
+    seen = []
+
+    def fake_send(addr, cmd):
+        seen.append((addr, cmd))
+        return (True, replies[addr])
+
+    monkeypatch.setattr(aoto, "_send", fake_send)
+    results = aoto.probe_raw("Зал1", {"method": "POST", "path": "/getGlobalSettings", "body": {}})
+    assert [addr for addr, _ok, _r in results] == ["10.0.0.1:8080", "10.0.0.2:8080"]
+    assert len(seen) == 2                                            # not one call per field
+    assert [aoto.field_value(r, "obj.brightness") for _a, _ok, r in results] == [1200, 800]
+    assert [aoto.field_value(r, "obj.gammaCoefficient") for _a, _ok, r in results] == [2.2, 2.2]
+
+
+def test_probe_raw_failure_and_no_addresses(catalog, monkeypatch):
+    monkeypatch.setattr(aoto, "_send", lambda addr, cmd: (False, ""))
+    assert aoto.probe_raw("Зал1", {"path": "/x"}) == [("10.0.0.1:8080", False, None),
+                                                      ("10.0.0.2:8080", False, None)]
+    monkeypatch.setattr(aoto, "_groups", {})
+    assert aoto.probe_raw("Ghost", {"path": "/x"}) == []
+
+
 # --- aggregation ----------------------------------------------------------
 def test_action_text_ok_and_partial():
     assert aoto._action_text([("a", True, None), ("b", True, None)]) == "OK 2/2"
@@ -69,10 +115,10 @@ def test_action_text_ok_and_partial():
 
 def test_status_text_agrees_differs_partial_errors():
     st = {"label": "S", "response_field": "obj.brightness"}
-    assert aoto._status_text(st, [("a", True, 225), ("b", True, 225)]) == "225"      # equal
-    assert aoto._status_text(st, [("a", True, 200), ("b", True, 225)]) == "200-225"  # range
-    assert aoto._status_text(st, [("a", True, 200), ("b", False, None)]) == "200 (1/2)"  # partial
-    assert aoto._status_text(st, [("a", False, None)]) == "ERR"                      # all failed
+    assert aoto.status_text(st, [("a", True, 225), ("b", True, 225)]) == "225"      # equal
+    assert aoto.status_text(st, [("a", True, 200), ("b", True, 225)]) == "200-225"  # range
+    assert aoto.status_text(st, [("a", True, 200), ("b", False, None)]) == "200 (1/2)"  # partial
+    assert aoto.status_text(st, [("a", False, None)]) == "ERR"                      # all failed
 
 
 def test_map_applies_labels():
@@ -84,15 +130,15 @@ def test_map_applies_labels():
 
 def test_status_text_uses_labels_and_lists_when_differ():
     hdr = {"response_field": "obj.hdrSetting", "labels": {"1": "SDR", "3": "PQ"}}
-    assert aoto._status_text(hdr, [("a", True, 1), ("b", True, 1)]) == "SDR"
-    assert aoto._status_text(hdr, [("a", True, 1), ("b", True, 3)]) == "SDR/PQ"
+    assert aoto.status_text(hdr, [("a", True, 1), ("b", True, 1)]) == "SDR"
+    assert aoto.status_text(hdr, [("a", True, 1), ("b", True, 3)]) == "SDR/PQ"
 
 
 def test_values_differ():
     hdr = {"labels": {"1": "SDR", "3": "PQ"}}
-    assert aoto._values_differ(hdr, [("a", True, 1), ("b", True, 1)]) is False
-    assert aoto._values_differ(hdr, [("a", True, 1), ("b", True, 3)]) is True
-    assert aoto._values_differ(hdr, [("a", True, 1), ("b", False, None)]) is False
+    assert aoto.values_differ(hdr, [("a", True, 1), ("b", True, 1)]) is False
+    assert aoto.values_differ(hdr, [("a", True, 1), ("b", True, 3)]) is True
+    assert aoto.values_differ(hdr, [("a", True, 1), ("b", False, None)]) is False
 
 
 def test_format_values_range_and_categorical():
@@ -156,7 +202,7 @@ def test_status_button_shows_cached_value_and_press_refreshes(catalog, monkeypat
     status = aoto._group_commands(node)[1]
     status.on_press()                       # polls, writes cache
     results = aoto._cached_results("Зал2", "Статус")
-    assert aoto._status_text(catalog["commands"][1], results) == "2"
+    assert aoto.status_text(catalog["commands"][1], results) == "2"
     refreshed = aoto._group_commands(node)[1]
     assert refreshed.label == "Статус\n2"   # label now reflects the cache
 
@@ -191,8 +237,8 @@ def test_poll_statuses_fills_cache_for_status_commands_only(catalog, monkeypatch
     aoto._poll_statuses()
     st_cmd = catalog["commands"][1]
     # status command cached for both groups; the action command is not polled
-    assert aoto._status_text(st_cmd, aoto._cached_results("Зал1", "Статус")) == "1"
-    assert aoto._status_text(st_cmd, aoto._cached_results("Зал2", "Статус")) == "1"
+    assert aoto.status_text(st_cmd, aoto._cached_results("Зал1", "Статус")) == "1"
+    assert aoto.status_text(st_cmd, aoto._cached_results("Зал2", "Статус")) == "1"
     assert aoto._cached_results("Зал1", "Блэкаут") == []
 
 
