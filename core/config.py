@@ -23,9 +23,13 @@ OSC_PORT = 12321
 HOST = "0.0.0.0"
 PORT = 7878
 
-# The Companion page number the physical deck is mapped to. Used to draw the
-# root menu on startup before any button is pressed.
-DEFAULT_PAGE = "1"
+# The Companion pages the physical decks are mapped to -- one page per deck
+# (every button of a deck POSTs its own page number, and all menu state is kept
+# per page, so two decks can sit on different menus at the same time). Every
+# page listed here is drawn on startup, so a second deck is not blank until its
+# first press. Add a machine's extra deck pages in config.local.json, e.g.
+# ["1", "2"].
+DECK_PAGES = ["1"]
 
 # --- Deck geometry (Stream Deck XL) --------------------------------------
 GRID_ROWS = 4          # rows 0..3
@@ -154,20 +158,21 @@ PIXELHUE_TAKE_TIME_MS = 500         # Take / preset-apply transition fade (ms); 
 PIXELHUE_FTB_TIME_MS = 500          # FTB fade time (ms)
 PIXELHUE_PRESET_TARGET_REGION = 2   # where presets load: 2 = program, 4 = preview
 
-# --- Touch (TouchDesigner control over OSC) -------------------------------
-# A "Touch" tab. Groups are files in TOUCH_GROUPS_DIR (one "label = filename"
-# per line); pressing a button fires ONE OSC message to TouchDesigner at
-# TOUCH_OSC_HOST:TOUCH_OSC_PORT with the button's filename as a string argument.
-# Each group has its own OSC address via an "@address = /path" line in its file;
-# groups without one fall back to TOUCH_OSC_ADDRESS below. See core/touch.py.
-TOUCH_DIR = Path(__file__).resolve().parent.parent / "touch"
-TOUCH_GROUPS_DIR = TOUCH_DIR / "groups"
+# --- Touch (TouchDesigner: the deck buttons ARE the client's buttons) ------
+# The "Touch" tab has no hardcoded content: a TouchDesigner client registers
+# itself and sets its buttons over HTTP (POST /touch/buttons) and the tab grows
+# one submenu per live client. Pressing a button fires ONE fire-and-forget OSC
+# message to that client's host:port/address with the button id as a string
+# argument, so the press is proxied back into TouchDesigner. Clients must ping
+# (POST /touch/ping); one that has been silent for TOUCH_CLIENT_TIMEOUT seconds
+# is dropped and the deck is redrawn, so a closed .toe leaves no dead buttons.
+# The host/port/address below are only DEFAULTS for a client that sends none.
+# See core/touch.py and touch/client.example.py.
 TOUCH_OSC_HOST = "127.0.0.1"
 TOUCH_OSC_PORT = 7777
-TOUCH_OSC_ADDRESS = "/file"   # default OSC address when a group sets no @address
-# Top-level Touch buttons (alongside the groups) that fire a no-argument OSC
-# message to an address named after them, e.g. "file" -> /file. See core/touch.py.
-TOUCH_COMMANDS = ("file", "base", "fps")
+TOUCH_OSC_ADDRESS = "/touch"    # OSC address a press is sent to by default
+TOUCH_CLIENT_TIMEOUT = 30.0     # drop a client silent for this long (seconds)
+TOUCH_SWEEP_INTERVAL = 5.0      # how often the sweeper looks for dead clients
 
 # --- Generic OSC buttons (an "OSC" tab) -----------------------------------
 # An "OSC" tab for buttons that fire an arbitrary OSC message. Groups are files

@@ -33,7 +33,7 @@ Two transports, opposite directions:
 - **Dynamic "PC" menu** — one button per host in the active PDQ target list, colored live by ping status; pick a host, then a package, to deploy to that single machine.
 - **Batch "PDQ" menu** — pick the active list, toggle individual hosts in or out, choose a scope (whole list vs. enabled hosts), then deploy a package to the whole selection in one call.
 - **"AOTO" LED-processor menu** — control [Aoto](https://www.aoto.com/) video processors over HTTP, grouped by file. Pick a group, then a command; the request fires to every controller in the group at once. Commands that return a status (e.g. current display mode) show the value on the button, aggregated across the group and refreshed in the background. Each group also has a **brightness submenu** — the current level in **nits with the percentage of the group's maximum in brackets** (e.g. `1496 (100%)`), **Темнее/Ярче** buttons that step every controller by a configurable (doublable/halvable) step, and **Темнее 5% / Ярче 5%** buttons that step by `AOTO_BRIGHTNESS_PERCENT` of the group's ceiling — plus a **Dynamic Range submenu** with one button per HDR mode (SDR/HLG/PQ) that sets it across the whole group. The per-group brightness ceiling is set by an **`@max = <n>` line in the group's `aoto/groups/*.txt` file** (overrides the `AOTO_BRIGHTNESS_LIMITS` config). Every group also gets a **"Пресеты" file browser** (`aoto/presets/`): folders are preset groups, each `*.json` file is a self-contained list of parameters (`set` path/key/value + optional `get` spec); pressing a preset applies it to every controller of that group, **"Записать пресет"** captures the group's current state (read through each `get` spec) into a new file and **"Новая папка"** creates a folder. The capture catalog lives in `aoto/presets/parameters.json` (template `parameters.example.json`) — the parameter list grows by editing that file, no code changes.
-- **"Touch" menu** — trigger clips/files in [TouchDesigner](https://derivative.ca/) over OSC, grouped by file. Pick a group, then a button; each press fires one OSC message (default `127.0.0.1:7777`) carrying the button's filename. Each group targets its own OSC address (an `@address = /path` line in the group file), so different groups can drive different things. The tab also has top-level buttons (`file`/`base`/`fps`) that fire a no-argument OSC message to an address named after them.
+- **"Touch" menu — the buttons come from TouchDesigner** — the deck does not hardcode anything. A TouchDesigner client (a Python snippet inside your `.toe`; template: [`touch/client.example.py`](touch/client.example.py)) registers itself and posts its button list over HTTP (`POST /touch/buttons`: `id`, `label`, optional `color`/`active`), and pings to stay alive (`POST /touch/ping`). Each live client is a submenu on the Touch tab, and pressing one of its buttons fires **one OSC message** back into TouchDesigner with the button id — so the press is proxied into your network and the deck only shows what TD tells it to. A client that stops pinging (a closed `.toe`) disappears from the deck within `TOUCH_CLIENT_TIMEOUT`, and the framework's own **Back**/Home buttons keep working as everywhere else.
 - **"PixelHue" menu** — control a PixelHue Q8 (also P10/P20/P80) LED video processor over HTTP (API notes in [`PIXELHUE_API_GUIDE.md`](PIXELHUE_API_GUIDE.md)). One device per install (`PIXELHUE_HOST`/`PORT` in `core/config.py`, per machine via `config.local.json`); auth is a passwordless JWT rebuilt automatically after a device reboot. The tab shows node status, global **FTB**/**Freeze** toggles for all real output screens at once, a **Mapping** toggle (the PixelFlow "Device → Location → Mapping" switch; `PUT /unico/v1/node/interface-location`), a per-screen submenu (**Take / Cut / Freeze / FTB**; MVR multi-viewer screens are hidden), and the device's **preset list** (applied to the program region). Screens and presets are polled in the background so the toggle states light up truthfully.
 - **"Sync" menu** — run [FreeFileSync](https://freefilesync.org/) batch jobs from the deck. Configure jobs as `(label, path-to-.ffs_batch)` pairs; each press runs `FreeFileSync.exe` on that batch and shows the result.
 - **"Develop" menu** — **Pull & Restart** runs `git pull` on the project and restarts the server so the new code takes effect, and **Открыть статус** opens the **web status page** in this machine's browser, straight from the deck.
@@ -81,7 +81,10 @@ python main.py                    # serves on 0.0.0.0:7878
 
 - `POST /press?page=&row=&col=` — called by every deck button on press.
 - `POST /reload` — rebuild the menu tree from disk and redraw active pages (use after editing `menus/`).
+- `POST /touch/buttons` / `POST /touch/ping` — a TouchDesigner client posts its deck buttons / keeps them alive (see the Touch feature above).
 - `GET /` — the read-only **web status page**; `GET /status` — the JSON it renders (see the feature list above).
+
+**Two decks?** One server can drive several Stream Decks at once. Each deck's buttons send their own Companion page number, every page keeps its own menu state, and `DECK_PAGES` (in `config.local.json`, e.g. `["1", "2"]`) lists the pages to draw at startup so neither deck starts blank.
 
 All tunables — ports, PDQ paths, timeouts, colors, intervals, grid size — have their **defaults** in [`core/config.py`](core/config.py).
 
@@ -125,7 +128,7 @@ core/
   pdqmenu.py       the batch "PDQ" deploy menu
   aoto.py          the "AOTO" LED-processor HTTP menu
   aotopresets.py   the Aoto preset browser (folders/files under aoto/presets/)
-  touch.py         the "Touch" TouchDesigner OSC menu
+  touch.py         the "Touch" tab (buttons come from TouchDesigner clients)
   pixelhue.py      the "PixelHue" Q8 HTTP-control tab (node/screens/presets)
   ffs.py           the "Sync" FreeFileSync batch-job tab
   develop.py       the "Develop" git-pull + restart / open-status-page tab
@@ -136,7 +139,7 @@ core/
 menus/             the menu hierarchy (folders = submenus, files = buttons)
 web/               the status page markup (index.html; edit it without restarting)
 aoto/              Aoto groups (groups/*.txt), commands (commands.json) and parameter presets (presets/)
-touch/             Touch groups (groups/*.txt, "label = filename" per line)
+touch/             the TouchDesigner client template (client.example.py; the deck's Touch buttons come from TD)
 pc_aliases.example.txt  template for pc_aliases.txt (see "Machine-local configuration")
 config.local.example.json  template for config.local.json (see "Machine-local configuration")
 PIXELHUE_API_GUIDE.md  PixelHue Q8 API notes: protocol, endpoints, error codes

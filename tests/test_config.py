@@ -34,9 +34,9 @@ def test_read_local_config_missing_file_is_empty(tmp_path):
 
 def test_read_local_config_valid_object_drops_notes(tmp_path):
     p = tmp_path / "c.json"
-    p.write_text(json.dumps({"_note": "hi", "DEFAULT_PAGE": "7", "FFS_JOBS": []}),
+    p.write_text(json.dumps({"_note": "hi", "DECK_PAGES": ["7"], "FFS_JOBS": []}),
                  encoding="utf-8")
-    assert config._read_local_config(p) == {"DEFAULT_PAGE": "7", "FFS_JOBS": []}
+    assert config._read_local_config(p) == {"DECK_PAGES": ["7"], "FFS_JOBS": []}
 
 
 def test_read_local_config_bad_json_is_empty(tmp_path, caplog):
@@ -64,16 +64,16 @@ def test_apply_local_overrides_replaces_known_names():
 
 
 def test_apply_local_overrides_ignores_unknown_and_non_data_names(caplog):
-    target = {"DEFAULT_PAGE": "1"}
+    target = {"DECK_PAGES": ["1"]}
     applied = config.apply_local_overrides(
-        {"DEFAULT_PAGE": "9", "Bogus": 1, "Kind": "menu"}, into=target)
-    assert applied == ["DEFAULT_PAGE"]
-    assert target["DEFAULT_PAGE"] == "9"
+        {"DECK_PAGES": ["9"], "Bogus": 1, "Kind": "menu"}, into=target)
+    assert applied == ["DECK_PAGES"]
+    assert target["DECK_PAGES"] == ["9"]
     assert "Bogus" in caplog.text and "Kind" in caplog.text   # both warned
 
 
 def test_overridable_names_are_uppercase_data_constants():
-    assert "DEFAULT_PAGE" in config._OVERRIDABLE
+    assert "DECK_PAGES" in config._OVERRIDABLE
     assert "FFS_JOBS" in config._OVERRIDABLE
     assert "Kind" not in config._OVERRIDABLE          # an imported class
     assert not any(n.startswith("_") for n in config._OVERRIDABLE)
@@ -83,33 +83,34 @@ def test_overridable_names_are_uppercase_data_constants():
 def test_local_json_overrides_defaults_on_import(tmp_path):
     root = _mini_repo(tmp_path)
     (root / "config.local.json").write_text(
-        json.dumps({"DEFAULT_PAGE": "9", "OSC_PORT": 9999,
+        json.dumps({"DECK_PAGES": ["1", "2"], "OSC_PORT": 9999,
                     "FFS_JOBS": [["Photos", "D:/sync/photo.ffs_batch"]]}),
         encoding="utf-8")
     code = ("import core.config as c\n"
-            "print(c.DEFAULT_PAGE)\nprint(c.OSC_PORT)\nprint(repr(c.FFS_JOBS))")
+            "print(c.DECK_PAGES)\nprint(c.OSC_PORT)\nprint(repr(c.FFS_JOBS))")
     out = subprocess.run([sys.executable, "-c", code], cwd=root,
                          capture_output=True, text=True, timeout=30)
     assert out.returncode == 0, out.stderr
-    assert out.stdout.splitlines() == ["9", "9999", "[['Photos', 'D:/sync/photo.ffs_batch']]"]
+    assert out.stdout.splitlines() == ["['1', '2']", "9999",
+                                      "[['Photos', 'D:/sync/photo.ffs_batch']]"]
 
 
 def test_local_json_unknown_key_is_ignored_not_fatal(tmp_path):
     root = _mini_repo(tmp_path)
     (root / "config.local.json").write_text(
-        json.dumps({"DEFAULT_PAGE": "9", "Bogus_Key": 1}), encoding="utf-8")
-    code = "import core.config as c\nprint(c.DEFAULT_PAGE)\nprint(c.OSC_PORT)"
+        json.dumps({"DECK_PAGES": ["9"], "Bogus_Key": 1}), encoding="utf-8")
+    code = "import core.config as c\nprint(c.DECK_PAGES)\nprint(c.OSC_PORT)"
     out = subprocess.run([sys.executable, "-c", code], cwd=root,
                          capture_output=True, text=True, timeout=30)
     assert out.returncode == 0
-    assert out.stdout.splitlines() == ["9", str(config.OSC_PORT)]  # bogus key skipped
+    assert out.stdout.splitlines() == ["['9']", str(config.OSC_PORT)]  # bogus key skipped
 
 
 def test_local_json_invalid_is_harmless(tmp_path):
     root = _mini_repo(tmp_path)
     (root / "config.local.json").write_text("{oops", encoding="utf-8")
-    code = "import core.config as c\nprint(c.DEFAULT_PAGE)"
+    code = "import core.config as c\nprint(c.DECK_PAGES)"
     out = subprocess.run([sys.executable, "-c", code], cwd=root,
                          capture_output=True, text=True, timeout=30)
     assert out.returncode == 0
-    assert out.stdout.splitlines() == [config.DEFAULT_PAGE]        # defaults kept
+    assert out.stdout.splitlines() == [str(config.DECK_PAGES)]     # defaults kept

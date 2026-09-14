@@ -1,5 +1,0 @@
-# One button per line, "label = filename". See 01_стена.txt for the format.
-# This group targets its own OSC address; replace these with your real clips.
-@address = /ceiling
-Звёзды = stars.mov
-Волны = waves.mov

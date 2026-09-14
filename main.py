@@ -6,13 +6,14 @@ HTTP API. See CLAUDE.md and core/ for the architecture.
 
 It also serves a READ-ONLY status page (GET / for the page, GET /status for its
 JSON) showing the live state of the parameters the deck can turn; see
-core/webstatus.py.
+core/webstatus.py. A TouchDesigner client pushes its deck buttons here
+(POST /touch/buttons + /touch/ping); see core/touch.py.
 """
 import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 
 from core import (
@@ -26,15 +27,15 @@ log = logging.getLogger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load PDQ package/target-list names, draw the root menu, then start the
+    # Load PDQ package/target-list names, draw every deck's page, then start the
     # feedback poller and the PC ping sweep (which redraws pages as hosts change).
     pcbrowser.refresh_catalog()
     aoto.refresh()
     aotopresets.refresh()
-    touch.refresh()
     osc_buttons.refresh()
-    dispatcher.render_page(config.DEFAULT_PAGE)
-    dispatcher.refresh_feedback(config.DEFAULT_PAGE)
+    for page in config.DECK_PAGES:      # one page per deck, so none is blank at boot
+        dispatcher.render_page(page)
+        dispatcher.refresh_feedback(page)
     feedback.start_poller(
         dispatcher.refresh_feedback, state.all_pages, config.FEEDBACK_INTERVAL,
         on_cycle=progress.mark,  # reset the $(custom:Progress) countdown each cycle
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI):
     pixelhue.start(dispatcher.render_all_pages)  # poll PixelHue node/screens/presets
     progress.start(config.FEEDBACK_INTERVAL)  # tick the countdown once a second
     webstatus.start()  # refresh the status page's data while a browser has it open
+    touch.start(dispatcher.render_all_pages)  # drop dead Touch clients (redraws)
     yield
 
 
@@ -63,6 +65,24 @@ def reload_menus():
     dispatcher.reload_tree()
     dispatcher.render_all_pages()
     return {"status": "reloaded"}
+
+
+@app.post("/touch/buttons")
+def touch_buttons(payload: dict):
+    """A TouchDesigner client registers/refreshes its deck buttons and press target."""
+    try:
+        return touch.set_buttons(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+
+
+@app.post("/touch/ping")
+def touch_ping(payload: dict):
+    """A TouchDesigner client heartbeat: keeps its buttons on the deck."""
+    try:
+        return touch.ping(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @app.get("/", response_class=HTMLResponse)

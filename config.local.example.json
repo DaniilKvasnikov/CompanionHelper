@@ -1,8 +1,8 @@
 {
   "_readme": "Machine-local config for CompanionHelper. On EACH machine, copy this file to 'config.local.json' (git-ignored) in the project root and set only the keys that differ there. DELETE any key you do not need to override - a missing key always falls back to the default in core/config.py, so you keep receiving later default changes on git pull. Keys starting with '_' are notes and are ignored. Windows paths: use forward slashes, e.g. 'C:/Program Files (x86)/...' (a single backslash would break JSON). FFS_JOBS is a JSON array of [label, path-to-.ffs_batch] pairs.",
 
-  "_deck": "Which Companion page number this machine's physical deck is mapped to, and the Companion OSC endpoint this server writes button visuals to.",
-  "DEFAULT_PAGE": "1",
+  "_deck": "DECK_PAGES lists the Companion pages this machine's physical decks are mapped to - one entry per deck (e.g. [\"1\", \"2\"] for two decks). Every page listed is drawn on startup and keeps its own menu state, so the decks can sit on different menus. OSC_HOST/OSC_PORT is the Companion OSC endpoint this server writes button visuals to.",
+  "DECK_PAGES": ["1"],
   "OSC_HOST": "127.0.0.1",
   "OSC_PORT": 12321,
 
@@ -11,9 +11,11 @@
   "PDQ_DB_PATH": "C:/ProgramData/Admin Arsenal/PDQ Deploy/Database.db",
   "PDQ_TIMEOUT": 60,
 
-  "_touch": "TouchDesigner OSC target on this machine (the per-group OSC addresses come from the touch/groups/*.txt files).",
+  "_touch": "The Touch tab's buttons come from TouchDesigner clients (POST /touch/buttons + /touch/ping). These three are only DEFAULTS for a client that sends no host/port/address of its own: where a button press is sent back as OSC. TOUCH_CLIENT_TIMEOUT is how long a client may stay silent before it is dropped from the deck; raise it if a client pings rarely.",
   "TOUCH_OSC_HOST": "127.0.0.1",
   "TOUCH_OSC_PORT": 7777,
+  "TOUCH_OSC_ADDRESS": "/touch",
+  "TOUCH_CLIENT_TIMEOUT": 30,
 
   "_pixelhue": "PixelHue Q8 node on this network (default is the venue device; see PIXELHUE_* in core/config.py and PIXELHUE_API_GUIDE.md).",
   "PIXELHUE_HOST": "192.168.200.161",
