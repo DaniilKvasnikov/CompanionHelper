@@ -33,9 +33,11 @@ import logging
 import threading
 import time
 
-from . import aoto, aotopresets, diag, pcbrowser, pixelhue
+from . import aoto, aotopresets, diag, pcbrowser, pdq, pixelhue
 from .config import (
     AOTO_BRIGHTNESS_STATUS_LABEL,
+    PDQ_STATUS_INTERVAL,
+    PDQ_STATUS_LIMIT,
     PORT,
     WEB_IDLE_TIMEOUT,
     WEB_LOGS_PAGE,
@@ -50,6 +52,8 @@ _snapshot: dict = {}            # the last built snapshot (served as-is)
 _read_at: float | None = None   # monotonic time of the last completed read
 _viewer_until: float = 0.0      # reads keep running while a page asked recently
 _wake = threading.Event()       # set when a page lands on stale data (refresh now)
+_pdq: list[dict] = []           # PDQ's deployment journal (cached; own interval)
+_pdq_at: float | None = None    # monotonic time of the last journal read attempt
 
 
 # --- read plan: which parameters are shown, and how to read them ------------
@@ -203,6 +207,28 @@ def _brightness_percent(group: str, values: list) -> str | None:
     return f"{pcts[0]}%" if pcts[0] == pcts[-1] else f"{pcts[0]}-{pcts[-1]}%"
 
 
+# The device groups its own API by section (/globalSettings/*, /input/*, /system/*),
+# so the page groups the parameters the same way instead of printing one long list:
+# a dozen values read much better as a few labelled clusters of tiles.
+_AOTO_SECTIONS = (
+    ("/ng_ctrl_sys/globalSettings/", "Картинка"),
+    ("/ng_ctrl_sys/input/", "Вход и тест-паттерн"),
+    ("/ng_ctrl_sys/system/", "Система"),
+    ("/ng_ctrl_sys/module/", "Модули"),
+    ("/ng_ctrl_sys/box", "Кабинеты"),
+    ("/ng_ctrl_sys/area/", "Области"),
+)
+
+
+def section_of(path: str) -> str:
+    """The device section a parameter is read from ('Картинка', 'Система', ...)."""
+    for prefix, name in _AOTO_SECTIONS:
+        if path.startswith(prefix):
+            return name
+    parts = [p for p in path.split("/") if p]        # unknown namespace -> its own name
+    return parts[-2] if len(parts) >= 2 else "Прочее"
+
+
 def _param(group: str, spec: dict, results) -> dict:
     if results is None:
         value = "…"                         # nothing read yet
@@ -211,6 +237,7 @@ def _param(group: str, spec: dict, results) -> dict:
     else:
         value = aoto.status_text(_cmd(spec), results)
     item = {"label": spec["label"], "state": _state(spec, results), "value": value,
+            "section": section_of(spec["read"]["path"]),
             "controllers": _controllers(spec, results)}
     if spec["label"] == AOTO_BRIGHTNESS_STATUS_LABEL:      # nits + % of the ceiling
         pct = _brightness_percent(group, [v for _a, ok, v in (results or []) if ok])
@@ -255,6 +282,87 @@ def _pixelhue_section() -> dict:
     }
 
 
+# --- PDQ: the deployment journal (running tasks and how recent ones ended) --
+def _pick(row: dict, *names):
+    """First of `names` (case-insensitive) that the row actually carries."""
+    low = {str(k).lower(): v for k, v in row.items()}
+    for name in names:
+        value = low.get(name.lower())
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def deployment_state(status) -> str:
+    """Map PDQ's own status word onto the page's states."""
+    text = str(status or "").strip().lower()
+    if not text:
+        return "unknown"
+    if "run" in text or "progress" in text or "active" in text:
+        return "running"
+    if "fail" in text or "error" in text or "cancel" in text:
+        return "failed"
+    if "success" in text or "complete" in text or "done" in text:
+        return "ok"
+    return "other"
+
+
+def clock(value) -> str | None:
+    """A PDQ timestamp as HH:MM:SS, or None when it cannot be read.
+
+    The schema is undocumented and the column may hold text, a Unix time or
+    .NET ticks (PDQ is a .NET app: 100 ns since 0001-01-01) -- all three are
+    tried, and anything else is shown as nothing rather than as a wrong time."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if len(text) >= 19 and text[4] == "-":                  # 'YYYY-MM-DD HH:MM:SS'
+            return text[11:19]
+        if len(text) >= 8 and text[2] == ":":
+            return text[:8]
+        try:
+            value = float(text)
+        except ValueError:
+            return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number > 1e15:                                           # .NET ticks
+        number = number / 1e7 - 62135596800
+    if 946684800 <= number <= 4102444800:                      # 2000..2100
+        return time.strftime("%H:%M:%S", time.localtime(number))
+    return None
+
+
+def _deployment_view(row: dict) -> dict:
+    """The fields of one journal row the page shows (the rest stays in `raw`)."""
+    status = _pick(row, "Status", "Result", "State")
+    targets = row.get("targets") or []
+    return {
+        "id": _pick(row, "DeploymentId", "Id"),
+        "package": str(_pick(row, "PackageName", "Package", "Name") or "?"),
+        "status": str(status or "?"),
+        "state": deployment_state(status),
+        "started": clock(_pick(row, "StartTime", "StartDate", "Start", "Time", "Created")),
+        "finished": clock(_pick(row, "EndTime", "EndDate", "End", "Completed", "FinishTime")),
+        "targets": len(targets),
+        "target_names": [str(_pick(t, "Name", "ComputerName", "Target", "Host") or "?")
+                         for t in targets][:12],
+        "target_states": [deployment_state(_pick(t, "Status", "Result", "State", "ComputerStatus"))
+                          for t in targets][:12],
+        "raw": {k: v for k, v in row.items() if k != "targets"},
+    }
+
+
+def _pdq_section() -> dict:
+    with _lock:
+        rows, at = list(_pdq), _pdq_at
+    age = None if at is None else round(time.monotonic() - at, 1)
+    return {"deployments": [_deployment_view(r) for r in rows], "age": age}
+
+
 # --- the snapshot ----------------------------------------------------------
 def _pull_pixelhue() -> None:
     """Re-read the PixelHue device, fail-soft: an offline device is not an error."""
@@ -263,6 +371,28 @@ def _pull_pixelhue() -> None:
     except Exception as e:  # noqa: BLE001 - the page keeps showing the other sections
         log.warning("pixelhue pull for the status page failed: %s", e)
         diag.record("web", "обновление статуса", f"pixelhue: {e}"[:120])
+
+
+def _pull_deployments() -> None:
+    """Read PDQ's deployment journal, but no more often than PDQ_STATUS_INTERVAL.
+
+    Reading it copies the whole database (pdq._connect), which is far heavier
+    than a device read, so it has its own slower cadence while a page watches."""
+    global _pdq, _pdq_at
+    now = time.monotonic()
+    with _lock:
+        if _pdq_at is not None and now - _pdq_at < PDQ_STATUS_INTERVAL:
+            return
+        _pdq_at = now          # set first: one attempt per interval, success or not
+    try:
+        rows = pdq.recent_deployments(PDQ_STATUS_LIMIT)
+    except Exception as e:  # noqa: BLE001 - a missing DB/schema must not break the page
+        log.warning("PDQ deployment journal unreadable: %s", e)
+        diag.record("pdq", "журнал задач", str(e)[:200])
+        return
+    diag.resolved("pdq", "журнал задач")
+    with _lock:
+        _pdq = rows
 
 
 def refresh() -> None:
@@ -278,11 +408,13 @@ def refresh() -> None:
     results: dict[tuple[str, str], list] = {}
     for group in aoto.groups():
         results.update(_read_group(group, specs))
+    _pull_deployments()          # self-throttled: copies the PDQ DB at most 1/interval
     puller.join()
     snapshot = {
         "read_at": time.strftime("%H:%M:%S"),
         "aoto": _aoto_section(specs, results),
         "pc": _pc_section(),
+        "pdq": _pdq_section(),
         "pixelhue": _pixelhue_section(),
     }
     with _lock:

@@ -267,12 +267,13 @@ def _flag_state(attr: str) -> int | None:
 
 
 def _flag_word(v: int | None) -> str:
-    return "on" if v == 1 else ("off" if v == 0 else "mix")
+    """Deck wording for an aggregate flag (Russian, like the rest of the deck)."""
+    return "вкл" if v == 1 else ("выкл" if v == 0 else "частично")
 
 
 def _on_off(v: int | None) -> str:
     """Single on/off with an 'unknown' placeholder (mapping state before first poll)."""
-    return "on" if v == 1 else ("off" if v == 0 else "…")
+    return "вкл" if v == 1 else ("выкл" if v == 0 else "…")
 
 
 def _green():
@@ -489,10 +490,10 @@ def _tab_children(node) -> list:
     out: list = [
         ActionNode(name="status", label=status_text, kind=Kind.COMMAND,
                    after=After.RERENDER, color_fn=status_color, on_press=_refresh_now),
-        ActionNode(name="ftb", label=f"FTB\n{_flag_word(_flag_state('ftb_enable'))}",
+        ActionNode(name="ftb", label=f"Затемнение\n{_flag_word(_flag_state('ftb_enable'))}",
                    kind=Kind.COMMAND, after=After.RERENDER,
                    color_fn=_global_color("ftb_enable"), on_press=_toggle_global_ftb),
-        ActionNode(name="freeze", label=f"Freeze\n{_flag_word(_flag_state('freeze'))}",
+        ActionNode(name="freeze", label=f"Стоп-кадр\n{_flag_word(_flag_state('freeze'))}",
                    kind=Kind.COMMAND, after=After.RERENDER,
                    color_fn=_global_color("freeze"), on_press=_toggle_global_freeze),
         ActionNode(name="mapping", label=f"Mapping\n{_on_off(mapping_enabled())}",
@@ -556,11 +557,11 @@ def _screen_buttons(node) -> list:
                    on_press=lambda sid=sid: _take(sid)),
         ActionNode(name="cut", label="Cut", kind=Kind.COMMAND, after=After.TEXT,
                    on_press=lambda sid=sid: _cut(sid)),
-        ActionNode(name="freeze", label=f"Freeze\n{_state_line(sid, 'freeze')}",
+        ActionNode(name="freeze", label=f"Стоп-кадр\n{_state_line(sid, 'freeze')}",
                    kind=Kind.COMMAND, after=After.RERENDER,
                    color_fn=_screen_color(sid, "freeze"),
                    on_press=lambda sid=sid: _toggle_freeze(sid)),
-        ActionNode(name="ftb", label=f"FTB\n{_state_line(sid, 'ftb_enable')}",
+        ActionNode(name="ftb", label=f"Затемнение\n{_state_line(sid, 'ftb_enable')}",
                    kind=Kind.COMMAND, after=After.RERENDER,
                    color_fn=_screen_color(sid, "ftb_enable"),
                    on_press=lambda sid=sid: _toggle_ftb(sid)),

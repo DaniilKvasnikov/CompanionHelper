@@ -6,10 +6,12 @@
   "OSC_HOST": "127.0.0.1",
   "OSC_PORT": 12321,
 
-  "_pdq": "PDQ Deploy is local-only: these paths point at THIS machine's install (Enterprise license + elevated server needed for deploys).",
+  "_pdq": "PDQ Deploy is local-only: these paths point at THIS machine's install (Enterprise license + elevated server needed for deploys). PDQ_STATUS_INTERVAL is how often the status page re-reads the deployment journal (running/recent tasks) -- the read copies the whole database, so keep it slower than WEB_REFRESH_INTERVAL.",
   "PDQ_DEPLOY_EXE": "C:/Program Files (x86)/Admin Arsenal/PDQ Deploy/PDQDeploy.exe",
   "PDQ_DB_PATH": "C:/ProgramData/Admin Arsenal/PDQ Deploy/Database.db",
   "PDQ_TIMEOUT": 60,
+  "PDQ_STATUS_INTERVAL": 5,
+  "PDQ_STATUS_LIMIT": 8,
 
   "_touch": "The Touch tab's buttons come from TouchDesigner clients (POST /touch/buttons + /touch/ping). These three are only DEFAULTS for a client that sends no host/port/address of its own: where a button press is sent back as OSC. TOUCH_CLIENT_TIMEOUT is how long a client may stay silent before it is dropped from the deck; raise it if a client pings rarely.",
   "TOUCH_OSC_HOST": "127.0.0.1",

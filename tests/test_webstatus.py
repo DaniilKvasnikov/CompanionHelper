@@ -9,8 +9,8 @@ import time
 
 import pytest
 
-from core import aoto, aotopresets, diag, pcbrowser, pixelhue, webstatus
-from core.config import WEB_PAGE, WEB_REFRESH_INTERVAL
+from core import aoto, aotopresets, diag, pcbrowser, pdq, pixelhue, webstatus
+from core.config import PDQ_STATUS_LIMIT, WEB_PAGE, WEB_REFRESH_INTERVAL
 
 
 @pytest.fixture
@@ -20,6 +20,8 @@ def world(monkeypatch):
     monkeypatch.setattr(webstatus, "_read_at", None)
     monkeypatch.setattr(webstatus, "_viewer_until", 0.0)
     monkeypatch.setattr(webstatus, "_wake", threading.Event())
+    monkeypatch.setattr(webstatus, "_pdq", [])
+    monkeypatch.setattr(webstatus, "_pdq_at", None)
     monkeypatch.setattr(diag, "_items", {})
 
     groups = {"Зал1": ["10.0.0.1:8080", "10.0.0.2:8080"], "Зал2": ["10.0.0.3:8080"]}
@@ -217,6 +219,90 @@ def test_pixelhue_section_when_the_device_is_down(world, monkeypatch):
     webstatus.refresh()
     ph = webstatus.snapshot()["pixelhue"]
     assert ph["online"] is None and ph["error"] == "недоступен" and ph["mapping"] is None
+
+
+# --- AOTO grouping ----------------------------------------------------------
+def test_parameters_carry_a_section_so_nothing_is_ungrouped(world):
+    """Every parameter lands in a cluster -- a missing section would leave a blank heading."""
+    webstatus.refresh()
+    params = [p for g in webstatus.snapshot()["aoto"] for p in g["params"]]
+    assert params and all(p["section"] for p in params)
+
+
+def test_section_of_maps_the_devices_own_namespaces():
+    assert webstatus.section_of("/ng_ctrl_sys/globalSettings/setBrightness") == "Картинка"
+    assert webstatus.section_of("/ng_ctrl_sys/globalSettings/getGlobalSettings") == "Картинка"
+    assert webstatus.section_of("/ng_ctrl_sys/input/getDataBaseInputInfo") == "Вход и тест-паттерн"
+    assert webstatus.section_of("/ng_ctrl_sys/system/getSystemStatus") == "Система"
+    assert webstatus.section_of("/ng_ctrl_sys/boxGroup/setGain") == "Кабинеты"
+    assert webstatus.section_of("/ng_ctrl_sys/something/get") == "something"   # unknown -> its own
+    assert webstatus.section_of("/getGlobalSettings") == "Прочее"
+    assert webstatus.section_of("") == "Прочее"
+
+
+# --- PDQ: the deployment journal -------------------------------------------
+def test_deployment_state_words():
+    assert webstatus.deployment_state("Running") == "running"
+    assert webstatus.deployment_state("in progress") == "running"
+    assert webstatus.deployment_state("Success") == "ok"
+    assert webstatus.deployment_state("Completed") == "ok"
+    assert webstatus.deployment_state("Failed") == "failed"
+    assert webstatus.deployment_state("Cancelled") == "failed"
+    assert webstatus.deployment_state(None) == "unknown"
+    assert webstatus.deployment_state("Weird") == "other"
+
+
+def test_clock_reads_text_unix_seconds_and_dotnet_ticks():
+    import time as _time
+
+    stamp = 1735002000
+    assert webstatus.clock("2024-12-24 12:03:11") == "12:03:11"
+    assert webstatus.clock("12:03:11") == "12:03:11"
+    assert webstatus.clock(stamp) == _time.strftime("%H:%M:%S", _time.localtime(stamp))
+    # PDQ is a .NET app: the same instant as 100 ns ticks since 0001-01-01
+    assert webstatus.clock((stamp + 62135596800) * 10**7) == webstatus.clock(stamp)
+    assert webstatus.clock(None) is None
+    assert webstatus.clock("nonsense") is None
+    assert webstatus.clock(1) is None                     # not a plausible timestamp
+
+
+def test_deployment_view_understands_various_column_names():
+    row = {"DeploymentId": 7, "PackageName": "Install", "Status": "Failed",
+           "StartTime": "2024-12-24 12:00:00", "SomeExtra": 1,
+           "targets": [{"Name": "PC-A", "Status": "Success"},
+                       {"Name": "PC-B", "Status": "Failed"}]}
+    view = webstatus._deployment_view(row)
+    assert (view["id"], view["package"], view["state"]) == (7, "Install", "failed")
+    assert view["started"] == "12:00:00" and view["targets"] == 2
+    assert view["target_names"] == ["PC-A", "PC-B"]
+    assert view["target_states"] == ["ok", "failed"]
+    assert view["raw"]["SomeExtra"] == 1 and "targets" not in view["raw"]
+
+
+def test_pdq_section_reads_on_its_own_slower_interval(world, monkeypatch):
+    calls = []
+    monkeypatch.setattr(pdq, "recent_deployments",
+                        lambda limit=8: calls.append(limit) or
+                        [{"DeploymentId": 1, "PackageName": "X", "Status": "Running"}])
+    webstatus.refresh()
+    assert calls == [PDQ_STATUS_LIMIT]
+    webstatus.refresh()                              # inside the interval -> cached
+    assert len(calls) == 1
+    snap = webstatus.snapshot()["pdq"]
+    assert snap["deployments"][0]["package"] == "X"
+    assert snap["deployments"][0]["state"] == "running" and snap["age"] is not None
+
+
+def test_a_broken_journal_is_explained_and_keeps_the_page(world, monkeypatch):
+    def boom(limit=8):
+        raise pdq.PdqSchemaError("таблица Deployments не читается; таблицы: Foo")
+
+    monkeypatch.setattr(pdq, "recent_deployments", boom)
+    webstatus.refresh()
+    assert webstatus.snapshot()["pdq"]["deployments"] == []
+    entry = diag.entries()[0]
+    assert (entry["source"], entry["target"]) == ("pdq", "журнал задач")
+    assert "Foo" in entry["message"]                 # what the DB does have is in the log
 
 
 # --- freshness --------------------------------------------------------------

@@ -1,8 +1,9 @@
 """PDQ Deploy integration.
 
 Two halves, because PDQ Deploy 20.x splits them:
-  - READ package / target-list names from PDQ's SQLite database (the CLI has
-    no command to enumerate them).
+  - READ package / target-list names and the deployment journal from PDQ's
+    SQLite database (the CLI has no command to enumerate them, and on-prem
+    PDQ Deploy has no REST API -- only the cloud PDQ Connect does).
   - DEPLOY via the CLI (PDQDeploy.exe), which needs Enterprise + admin + the
     background service. There is no `-TargetList` option, so to deploy to a
     Target List we expand its members from the DB into `-Targets`.
@@ -16,11 +17,21 @@ Discover what exists:
     python -m core.pdq packages
     python -m core.pdq lists
     python -m core.pdq members "Wall"
+    python -m core.pdq deployments      # the journal: what ran, and how it ended
+
+The deployment journal is the `Deployments` table (columns include
+`DeploymentId`, `PackageName`, `Status` -- 'Running'/'Success'/'Failed'/...),
+with one `DeploymentComputers` row per target. PDQ does not document the
+schema and it differs between versions, so recent_deployments() reads whole
+rows and webstatus picks the fields it understands; when a table or column is
+missing the error says exactly which columns/tables DO exist, so the log window
+answers "почему пусто" instead of leaving it a mystery.
 """
 from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -30,8 +41,17 @@ from pathlib import Path
 
 from .config import PDQ_DB_PATH, PDQ_DEPLOY_EXE, PDQ_TIMEOUT
 
+log = logging.getLogger("pdq")
+
 # (exit code, stdout, stderr)
 Result = tuple[int, str, str]
+
+
+class PdqSchemaError(RuntimeError):
+    """The PDQ database is there, but not the table/column we need.
+
+    The message carries what was found instead (table or column names), because
+    that is the only way to adapt from another machine without a debugger."""
 
 
 # --- database reads (packages, target lists) ------------------------------
@@ -81,6 +101,67 @@ def target_list_members(name: str) -> list[str]:
     """
     with _connect() as con:
         return [r[0] for r in con.execute(query, (name,))]
+
+
+# --- database reads: the deployment journal (what ran, how it ended) -------
+def _table_names(con) -> list[str]:
+    try:
+        return [r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")]
+    except sqlite3.Error:  # noqa: BLE001 - diagnostics only
+        return []
+
+
+def _column_names(con, table: str) -> list[str]:
+    try:
+        return [r[1] for r in con.execute(f"PRAGMA table_info({table})")]
+    except sqlite3.Error:  # noqa: BLE001 - diagnostics only
+        return []
+
+
+def recent_deployments(limit: int = 8, with_targets: bool = True) -> list[dict]:
+    """The newest rows of PDQ's `Deployments` table, newest first.
+
+    Every column of the row is kept (the schema is undocumented and varies), and
+    with `with_targets` each row also gets `targets` -- the `DeploymentComputers`
+    rows, i.e. where that deployment went and how each machine ended up. One
+    snapshot copy of the DB serves the whole call.
+
+    Raises PdqSchemaError (with the tables/columns that DO exist) when the
+    journal is not where we expect it, and sqlite3.Error when the DB itself
+    cannot be read (e.g. PDQ is not installed on this machine).
+    """
+    with _connect() as con:
+        con.row_factory = sqlite3.Row
+        try:
+            rows = con.execute(
+                "SELECT * FROM Deployments ORDER BY DeploymentId DESC LIMIT ?", (int(limit),)
+            ).fetchall()
+        except sqlite3.Error as e:
+            # Older/newer builds may not have DeploymentId: fall back to rowid.
+            try:
+                rows = con.execute(
+                    "SELECT * FROM Deployments ORDER BY rowid DESC LIMIT ?", (int(limit),)
+                ).fetchall()
+            except sqlite3.Error:
+                raise PdqSchemaError(
+                    f"таблица Deployments не читается ({e}); "
+                    f"колонки: {', '.join(_column_names(con, 'Deployments')) or '—'}; "
+                    f"таблицы: {', '.join(_table_names(con)[:25]) or '—'}"
+                ) from None
+        out: list[dict] = []
+        for row in rows:
+            item = dict(row)
+            if with_targets and item.get("DeploymentId") is not None:
+                try:
+                    item["targets"] = [dict(t) for t in con.execute(
+                        "SELECT * FROM DeploymentComputers WHERE DeploymentId = ?",
+                        (item["DeploymentId"],))]
+                except sqlite3.Error as e:  # a journal without target rows is still useful
+                    log.warning("DeploymentComputers unreadable: %s", e)
+                    item["targets"] = []
+            out.append(item)
+        return out
 
 
 # --- CLI deploy -----------------------------------------------------------
@@ -160,5 +241,12 @@ if __name__ == "__main__":  # discovery helper (reads the DB)
             print(f"{name}  ({len(target_list_members(name))} targets)")
     elif cmd == "members" and len(sys.argv) > 2:
         print("\n".join(target_list_members(sys.argv[2])))
+    elif cmd in ("deployments", "journal"):
+        for row in recent_deployments(limit=int(sys.argv[2]) if len(sys.argv) > 2 else 8):
+            targets = row.get("targets") or []
+            print(f"#{row.get('DeploymentId')}  {row.get('PackageName')}  "
+                  f"{row.get('Status')}  ({len(targets)} ПК)")
+            print("   колонки:", ", ".join(k for k in row if k != "targets"))
     else:
-        print('usage: python -m core.pdq [packages | lists | members "<list name>"]')
+        print('usage: python -m core.pdq '
+              '[packages | lists | members "<list name>" | deployments [N]]')

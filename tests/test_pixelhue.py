@@ -393,8 +393,8 @@ def test_tab_children_screens_and_presets_submenus(state, monkeypatch):
     by_name = {k.name: k for k in kids}
     assert by_name["status"].label == "V2.0.0\nonline"
     assert by_name["status"].color_fn() == COLORS[Kind.FEEDBACK]
-    assert by_name["ftb"].after == After.RERENDER and "off" in by_name["ftb"].label
-    assert by_name["mapping"].label == "Mapping\non"
+    assert by_name["ftb"].after == After.RERENDER and by_name["ftb"].label == "Затемнение\nвыкл"
+    assert by_name["mapping"].label == "Mapping\nвкл"
     assert by_name["mapping"].after == After.RERENDER
     assert by_name["mapping"].color_fn() == COLORS[Kind.FEEDBACK]
     assert by_name["__screens__"].label == "Экраны"
@@ -415,9 +415,9 @@ def test_screen_submenu_buttons(state, monkeypatch):
     assert len(menus) == 1 and menus[0].context == {"sid": 6}
     kids = {k.name: k for k in pixelhue._screen_buttons(menus[0])}
     assert kids["take"].after == After.TEXT and kids["cut"].after == After.TEXT
-    assert kids["freeze"].after == After.RERENDER and kids["freeze"].label == "Freeze\non"
+    assert kids["freeze"].after == After.RERENDER and kids["freeze"].label == "Стоп-кадр\nвкл"
     assert kids["freeze"].color_fn() == COLORS[Kind.FEEDBACK]
-    assert kids["ftb"].label == "FTB\noff"
+    assert kids["ftb"].label == "Затемнение\nвыкл"   # FTB renamed: the operator sees Russian
     assert kids["ftb"].color_fn() is None
 
     seen = []

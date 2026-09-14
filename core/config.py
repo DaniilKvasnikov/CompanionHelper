@@ -59,6 +59,11 @@ PROGRESS_TICK = 1.0        # seconds between progress updates
 PDQ_DEPLOY_EXE = r"C:\Program Files (x86)\Admin Arsenal\PDQ Deploy\PDQDeploy.exe"
 PDQ_DB_PATH = r"C:\ProgramData\Admin Arsenal\PDQ Deploy\Database.db"
 PDQ_TIMEOUT = 60.0         # seconds, for a PDQ CLI call
+# The status page's PDQ panel shows the deployment journal (running + recent
+# tasks). Reading it copies the DB (see pdq._connect), so it runs on its own,
+# slower interval than the other panels.
+PDQ_STATUS_INTERVAL = 5.0  # seconds between journal reads while a page watches
+PDQ_STATUS_LIMIT = 8       # how many recent deployments to show
 
 # --- PC browser (dynamic menu from the active PDQ target list) ------------
 # Optional aliases file: lines "ip = alias". An aliased host shows its alias

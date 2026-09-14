@@ -14,12 +14,12 @@
   html { font-size: var(--fs); }
   body {
     margin: 0; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text);
-    font: 1rem/1.35 system-ui, "Segoe UI", Roboto, sans-serif;
+    font: 1rem/1.3 system-ui, "Segoe UI", Roboto, sans-serif;
     display: flex; flex-direction: column;
   }
   header.top {
     flex: 0 0 auto; display: flex; align-items: center; gap: .7rem;
-    padding: .35rem .6rem; border-bottom: 1px solid var(--line);
+    padding: .3rem .6rem; border-bottom: 1px solid var(--line);
   }
   header.top .title { font-weight: 600; white-space: nowrap; }
   header.top .meta { color: var(--dim); font-variant-numeric: tabular-nums; flex: 1 1 auto;
@@ -32,52 +32,77 @@
   .btn:hover { background: #2a313a; }
   .btn .n { color: var(--bad); font-variant-numeric: tabular-nums; }
   .btn.calm .n { color: var(--dim); }
+
+  /* Four panels; AOTO gets double width because it carries a dozen values. */
   main {
-    flex: 1 1 auto; min-height: 0; display: grid; gap: .45rem; padding: .45rem .6rem .6rem;
-    grid-template-columns: minmax(11rem, 1fr) minmax(19rem, 2.2fr) minmax(11rem, 1fr);
+    flex: 1 1 auto; min-height: 0; display: grid; gap: .4rem; padding: .4rem .55rem .55rem;
+    grid-template-columns:
+      minmax(9rem, 0.85fr) minmax(17rem, 1.95fr) minmax(12rem, 1.15fr) minmax(9rem, 0.85fr);
   }
-  @media (max-width: 62rem) { main { grid-template-columns: 1fr; overflow: auto; } }
+  @media (max-width: 70rem) { main { grid-template-columns: 1fr 1fr; overflow: auto; } }
+  @media (max-width: 46rem) { main { grid-template-columns: 1fr; overflow: auto; } }
   .panel {
     min-height: 0; overflow: auto; background: var(--card); border: 1px solid var(--line);
-    border-radius: 8px; padding: .4rem .5rem .5rem;
+    border-radius: 8px; padding: .35rem .45rem .45rem;
   }
   .panel > h2 {
-    margin: 0 0 .3rem; font-size: .78rem; font-weight: 600; letter-spacing: .07em;
+    margin: 0 0 .25rem; font-size: .76rem; font-weight: 600; letter-spacing: .07em;
     text-transform: uppercase; color: var(--dim); display: flex; gap: .4rem; align-items: baseline;
   }
   .panel > h2 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .hint { color: var(--dim); }
 
-  /* --- AOTO ---------------------------------------------------------------- */
-  .group + .group { margin-top: .35rem; border-top: 1px solid var(--line); padding-top: .35rem; }
-  .ghead { display: flex; align-items: baseline; gap: .45rem; margin-bottom: .15rem; }
+  /* --- AOTO: one block per group, inside it one cluster per device section --- */
+  .group + .group { margin-top: .3rem; border-top: 1px solid var(--line); padding-top: .3rem; }
+  .ghead { display: flex; align-items: baseline; gap: .4rem; }
   .ghead b { font-weight: 600; }
   .chip { font-size: .72rem; padding: 0 .35rem; border-radius: 4px; background: #21262d; color: var(--dim); }
   .chip.ok { color: var(--ok); } .chip.mixed { color: var(--mixed); } .chip.err { color: var(--bad); }
-  .params { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0 .6rem; }
-  .p {
-    display: flex; justify-content: space-between; gap: .4rem; padding: 0 .2rem 0 .35rem;
-    border-left: 2px solid var(--unknown); min-width: 0;
+  .shead {
+    color: var(--dim); font-size: .74em; letter-spacing: .05em; text-transform: uppercase;
+    margin: .18rem 0 .08rem;
   }
-  .p.ok { border-left-color: var(--ok); }
-  .p.mixed, .p.partial { border-left-color: var(--mixed); }
-  .p.error { border-left-color: var(--bad); }
-  .p .pl { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .p .pv { font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .p .pv .pct { color: var(--dim); }
-  .p.mixed .pv, .p.partial .pv { color: var(--mixed); }
-  .p.error .pv { color: var(--bad); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.2rem, 1fr)); gap: .2rem .35rem; }
+  .tile {
+    display: flex; flex-direction: column; min-width: 0; padding: .05rem .3rem .1rem;
+    border-left: 2px solid var(--unknown); background: rgba(255,255,255,.025); border-radius: 3px;
+  }
+  .tile.ok { border-left-color: var(--ok); }
+  .tile.mixed, .tile.partial { border-left-color: var(--mixed); }
+  .tile.error { border-left-color: var(--bad); }
+  .tile .tl { color: var(--dim); font-size: .78em; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; }
+  .tile .tv { font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; }
+  .tile .tv .pct { color: var(--dim); }
+  .tile.mixed .tv, .tile.partial .tv { color: var(--mixed); }
+  .tile.error .tv { color: var(--bad); }
 
   /* --- PC ------------------------------------------------------------------ */
-  .hosts { display: flex; flex-direction: column; gap: .1rem; }
-  .host { display: flex; align-items: center; gap: .4rem; min-width: 0; }
-  .host .dot { flex: 0 0 auto; width: .5rem; height: .5rem; border-radius: 50%; background: var(--unknown); }
-  .host.up .dot { background: var(--ok); } .host.down .dot { background: var(--bad); }
+  .hosts { display: flex; flex-direction: column; gap: .05rem; }
+  .host { display: flex; align-items: center; gap: .35rem; min-width: 0; }
+  .host .dot, .job .dot { flex: 0 0 auto; width: .5rem; height: .5rem; border-radius: 50%;
+    background: var(--unknown); }
+  .host.up .dot, .job.running .dot { background: var(--ok); }
+  .host.down .dot, .job.failed .dot { background: var(--bad); }
+  .job.mixed .dot { background: var(--mixed); }
   .host .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
   .host .ip { color: var(--dim); font-variant-numeric: tabular-nums; }
-  .hint { color: var(--dim); }
+
+  /* --- PDQ journal --------------------------------------------------------- */
+  .jobs { display: flex; flex-direction: column; gap: .08rem; }
+  .job {
+    display: grid; grid-template-columns: .6rem minmax(0, 1fr) auto auto; gap: .35rem;
+    align-items: center; cursor: help;
+  }
+  .job .pkg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job .st { font-size: .8em; color: var(--dim); white-space: nowrap; }
+  .job.running .st { color: var(--ok); } .job.failed .st { color: var(--bad); }
+  .job .n { font-size: .8em; color: var(--dim); font-variant-numeric: tabular-nums;
+    white-space: nowrap; }
 
   /* --- PixelHue ------------------------------------------------------------ */
-  .badges { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: .25rem; }
+  .badges { display: flex; flex-wrap: wrap; gap: .2rem; margin-bottom: .2rem; }
   .badge {
     font-size: .8rem; padding: 0 .4rem; border-radius: 4px; background: #21262d;
     border: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -86,7 +111,7 @@
   .badge.ok { background: #14291d; border-color: #24512f; } .badge.ok .k { color: #8affc1; }
   .badge.error { background: #2d1a1a; border-color: #5a2626; } .badge.error .k { color: #ff9d97; }
   .badge.mixed { background: #2c2413; border-color: #5a4a1c; }
-  .scr { display: flex; align-items: baseline; gap: .35rem; min-width: 0; }
+  .scr { display: flex; align-items: baseline; gap: .3rem; min-width: 0; }
   .scr .nm { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
@@ -101,6 +126,7 @@
 <main>
   <section id="pc" class="panel"></section>
   <section id="aoto" class="panel"></section>
+  <section id="pdq" class="panel"></section>
   <section id="pixelhue" class="panel"></section>
 </main>
 
@@ -112,6 +138,8 @@
 const POLL_MS = 1000;
 const STATE_LABEL = { ok: "ок", mixed: "расхождение", partial: "частично",
                       error: "ошибка", unknown: "нет данных" };
+const JOB_LABEL = { running: "идёт", ok: "ok", failed: "ошибка",
+                    other: "?", unknown: "?" };
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
@@ -123,10 +151,7 @@ const ago = (s) => (s === null || s === undefined) ? "" :
   (s < 90 ? Math.round(s) + " с" : Math.round(s / 60) + " мин");
 const fmt = (v) => (v === null || v === undefined) ? "—"
   : (typeof v === "boolean" ? (v ? "вкл" : "выкл") : String(v));
-const shortAddr = (addr) => {
-  const host = String(addr).split(":")[0].split(".").pop();
-  return "." + host;
-};
+const shortAddr = (addr) => "." + String(addr).split(":")[0].split(".").pop();
 const header = (title, note) => {
   const h = el("h2");
   h.append(el("span", null, title));
@@ -134,16 +159,18 @@ const header = (title, note) => {
   return h;
 };
 
-// --- AOTO -------------------------------------------------------------------
-function paramRow(p) {
-  const row = el("div", "p " + p.state);
-  row.title = p.controllers.map((c) => shortAddr(c.addr) + " " + (c.ok ? fmt(c.value) : "нет ответа"))
-    .join(" · ") + "  —  " + (STATE_LABEL[p.state] || p.state);
-  row.append(el("span", "pl", p.label));
-  const value = el("span", "pv", fmt(p.value));
+// --- AOTO: grouped by the device's own sections -----------------------------
+function tile(p) {
+  const box = el("div", "tile " + p.state);
+  const addrs = p.controllers
+    .map((c) => shortAddr(c.addr) + " " + (c.ok ? fmt(c.value) : "нет ответа")).join(" · ");
+  box.title = p.label + " [" + (p.section || "") + "] — " + (STATE_LABEL[p.state] || p.state) +
+    (addrs ? "\n" + addrs : "") + (p.state === "error" ? "\nпричину смотрите в логах" : "");
+  box.append(el("span", "tl", p.label));
+  const value = el("span", "tv", fmt(p.value));
   if (p.percent) value.append(el("span", "pct", " · " + p.percent));
-  row.append(value);
-  return row;
+  box.append(value);
+  return box;
 }
 
 function groupCard(g) {
@@ -157,9 +184,22 @@ function groupCard(g) {
     : (bad || mixed ? `${bad + mixed} из ${g.params.length} не ок` : `${g.params.length} ок`);
   head.append(el("span", "chip " + cls, text));
   card.append(head);
-  const grid = el("div", "params");
-  for (const p of g.params) grid.append(paramRow(p));
-  card.append(grid);
+
+  // One cluster per device section (/globalSettings, /input, /system, ...).
+  const bySection = new Map();
+  for (const p of g.params) {
+    const key = p.section || "Прочее";
+    if (!bySection.has(key)) bySection.set(key, []);
+    bySection.get(key).push(p);
+  }
+  for (const [section, params] of bySection) {
+    const block = el("div", "sect");
+    block.append(el("div", "shead", section));
+    const tiles = el("div", "tiles");
+    for (const p of params) tiles.append(tile(p));
+    block.append(tiles);
+    card.append(block);
+  }
   return card;
 }
 
@@ -171,19 +211,55 @@ function renderAoto(box, groups) {
 
 // --- PC ---------------------------------------------------------------------
 function renderPc(box, pc) {
-  box.replaceChildren(header("ПК", pc.active_list ? "лист: " + pc.active_list : "лист не выбран"));
+  box.replaceChildren(header("ПК", pc.active_list ? "лист: " + pc.active_list : "нет листа"));
   if (!pc.hosts.length) { box.append(el("div", "hint", "нет хостов в активном списке PDQ")); return; }
   const list = el("div", "hosts");
   for (const h of pc.hosts) {
     const cls = h.up === true ? "up" : (h.up === false ? "down" : "unknown");
     const row = el("div", "host " + cls);
     row.title = h.host + (h.alias ? " (" + h.alias + ")" : "") +
-      (h.up === null || h.up === undefined ? " — не пингован" : " — пинг " + ago(pc.checked_ago) + " назад");
+      (h.up === null || h.up === undefined ? " — не пинговался" : " — пинг " + ago(pc.checked_ago) + " назад");
     row.append(el("i", "dot"));
     row.append(el("span", "n", h.alias || h.host));
     row.append(el("span", "ip", shortAddr(h.host)));
     list.append(row);
   }
+  box.append(list);
+}
+
+// --- PDQ: what ran, and how it ended ----------------------------------------
+function jobRow(d) {
+  const row = el("div", "job " + d.state);
+  row.append(el("i", "dot"));
+  row.append(el("span", "pkg", d.package));
+  row.append(el("span", "st", JOB_LABEL[d.state] || d.status));
+  row.append(el("span", "n", d.targets ? d.targets + " ПК" : (d.started || "")));
+
+  const lines = [("#" + d.id + " " + d.package + " — " + d.status).trim()];
+  if (d.started || d.finished) lines.push("начало " + (d.started || "?") +
+    (d.finished ? ", конец " + d.finished : ""));
+  if (d.target_names.length) {
+    lines.push("ПК: " + d.target_names
+      .map((n, i) => n + " " + (JOB_LABEL[d.target_states[i]] || "?")).join(", "));
+  }
+  const raw = Object.entries(d.raw || {})
+    .filter(([k]) => !/^id$/i.test(k)).slice(0, 8)
+    .map(([k, v]) => k + "=" + v).join(" · ");
+  if (raw) lines.push(raw);
+  row.title = lines.join("\n");
+  return row;
+}
+
+function renderPdq(box, data) {
+  const jobs = data.deployments || [];
+  box.replaceChildren(header("PDQ", jobs.length ? "задачи · " + ago(data.age) : ""));
+  if (!jobs.length) {
+    box.append(el("div", "hint", "журнал задач не прочитан"));
+    box.append(el("div", "hint", "причина — в логах (база PDQ, права, схема)"));
+    return;
+  }
+  const list = el("div", "jobs");
+  for (const d of jobs) list.append(jobRow(d));
   box.append(list);
 }
 
@@ -211,22 +287,27 @@ function renderPixelHue(box, ph) {
       ph.online === 1 ? "ok" : (ph.online === 0 ? "error" : ""),
       (ph.version || "") + (ph.error ? " — " + ph.error : ""));
   add("Mapping", ph.mapping === 1 ? "вкл" : (ph.mapping === 0 ? "выкл" : "…"),
-      ph.mapping === 1 ? "ok" : "");
-  for (const [label, key] of [["FTB", "ftb"], ["Freeze", "freeze"]]) {
+      ph.mapping === 1 ? "ok" : "",
+      "Mapping — переключатель PixelFlow «Device → Location → Mapping»");
+  for (const [label, key, tip] of [
+    ["Затемнение", "ftb", "FTB (Fade To Black) — плавное затемнение всего выхода, сразу по всем экранам"],
+    ["Стоп-кадр", "freeze", "Freeze — заморозка картинки (стоп-кадр), сразу по всем экранам"],
+  ]) {
     const v = flagOf(ph.screens, key);
-    add(label, flagWord(v), flagClass(v), label + ": " + flagWord(v) + " (по экранам)");
+    add(label, flagWord(v), flagClass(v), tip + "\nсейчас: " + flagWord(v) + " (по экранам)");
   }
-  add("пресеты", ph.presets, "");
+  add("пресеты", ph.presets, "", "Сколько пресетов отдаёт устройство");
   box.append(badges);
 
   if (!ph.screens.length) { box.append(el("div", "hint", "экраны не прочитаны")); return; }
   for (const s of ph.screens) {
     const row = el("div", "scr");
     row.append(el("span", "nm", s.name));
-    for (const [key, word] of [["ftb", "FTB"], ["freeze", "FZ"]]) {
+    for (const [key, word, tip] of [["ftb", "FTB", "Затемнение (FTB): "],
+                                    ["freeze", "FZ", "Стоп-кадр (Freeze): "]]) {
       const on = s[key] === 1;
       const chip = el("span", "badge " + (on ? "ok" : ""), word);
-      chip.title = word + ": " + (on ? "вкл" : "выкл");
+      chip.title = tip + (on ? "вкл" : "выкл") + " на этом экране";
       row.append(chip);
     }
     box.append(row);
@@ -281,6 +362,7 @@ function render(d) {
   renderMeta(d);
   renderPc(document.getElementById("pc"), d.pc || { hosts: [], active_list: null, checked_ago: null });
   renderAoto(document.getElementById("aoto"), d.aoto || []);
+  renderPdq(document.getElementById("pdq"), d.pdq || { deployments: [], age: null });
   renderPixelHue(document.getElementById("pixelhue"),
     d.pixelhue || { host: "", screens: [], presets: 0, mapping: null, online: null });
   fit();
