@@ -71,6 +71,15 @@ api("/globalSettings/setBrightness", {"brightness": 1000})   # писать
 называется `setDeepColor` (ключ тела, судя по UI, `deepColor`) — не включайте
 `deepcolor` в захват пресетов вслепую, проверяйте ключ.
 
+> **Что такое `scal`.** Это **зум канваса, а не параметр картинки**. Собственный код
+> веб-интерфейса контроллера читает его как `obj.scal / 100` и кладёт в `canvasZoom`
+> (значение по умолчанию `1`, то есть 100 %), заодно сохраняя в `localStorage` —
+> значит `scal` хранится **в процентах** (`50` = 50 %) и описывает масштаб вида
+> канваса/раскладки, а не яркость, гамму или HDR. Найдено в
+> `static/js/app.<hash>.js`: `n("setCanvasZoom", a.obj.scal/100)` сразу после
+> `getGlobalSettings`. Отдельный геттер `/globalSettings/getScal` тоже есть и
+> возвращает то же число.
+
 ### 2.2 `POST /input/getDataBaseInputInfo` `[verified]`
 
 Тело **`{"id": 1}`** (обязательно; с `{}` или `{"areaId":…}` возвращает `obj: null`).
@@ -116,7 +125,7 @@ OPTIONS), остальное `[ui]`.
 | `setBrightness` | яркость | ✓ `[verified]` |
 | `setColorTemple` | цветовая температура (K) — **опечатка в прошивке** | ✓ `[verified]` |
 | `setGammaCoefficient` | гамма | ✓ `[verified]` |
-| `setScal` | scal | ✓ `[verified]` |
+| `setScal` | scal (зум канваса, %; см. примечание ниже) | ✓ `[verified]` |
 | `setDarkMagic` | dark magic | ✓ `[verified]` |
 | `setColorSpaceEn` | вкл цветового пространства | ✓ `[verified]` |
 | `setColorSpace`, `getColorSpaceList` | выбор ЦП | `[ui]` |
@@ -195,7 +204,8 @@ OPTIONS), остальное `[ui]`.
 - значения пишутся телом `{key: value, **extra}`.
 
 Сейчас в каталоге 11 параметров (все `[verified]` по чтению, запись проверена):
-Яркость, Гамма, ColorTemperature, Scal, DarkMagic, ColorSpaceEn, ScreenTest
+Яркость, Гамма, ColorTemperature, **Масштаб** (`scal` = зум канваса в %),
+DarkMagic, ColorSpaceEn, ScreenTest
 (вкл/выкл), ScreenTest R/G/B, HDR.
 
 ---

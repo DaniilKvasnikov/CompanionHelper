@@ -17,7 +17,7 @@
       "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.colorTemperature" }
     },
     {
-      "name": "Scal",
+      "name": "Масштаб",
       "set": { "path": "/ng_ctrl_sys/globalSettings/setScal", "key": "scal" },
       "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.scal" }
     },
