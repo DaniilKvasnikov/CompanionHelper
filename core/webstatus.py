@@ -145,21 +145,41 @@ def _read_group(group: str, specs: list[dict]) -> dict[tuple[str, str], list]:
     return out
 
 
+def _reply_keys(replies: list, field: str) -> str:
+    """Keys of the object a dotted field should live in, from the first reply that came.
+
+    A field of 'obj.brightness' lives in the reply's 'obj', so those are the keys
+    worth printing: the top-level ones (status, msg, obj, ...) are always the same."""
+    for _addr, ok, reply in replies:
+        if not ok or not isinstance(reply, dict):
+            continue
+        node: object = reply
+        for part in field.split(".")[:-1]:
+            node = node.get(part) if isinstance(node, dict) else None
+        keys = list(node) if isinstance(node, dict) else list(reply)
+        return ", ".join(str(k) for k in keys[:6])
+    return "?"
+
+
 def _note_missing_field(group: str, spec: dict, replies: list, results: list) -> None:
     """Say why a parameter shows nothing when the device DID answer.
 
     Transport failures are already logged (with their URL) by aoto._send; this
-    covers the other silent case: the reply simply has no such field."""
+    covers the other silent case: the reply simply has no such field. A controller
+    that did not answer at all is NOT a missing field — blaming the field there
+    would send the reader looking in the wrong place, so that case is left to the
+    timeout entry and any stale field complaint is cleared."""
     target = f"{group}/{spec['label']}"
-    if results and all(ok and value is not None for _a, ok, value in results):
+    if not results or not all(ok for _a, ok, _v in results):
         diag.resolved("aoto", target)
         return
-    for _addr, ok, reply in replies:
-        if ok:
-            keys = ", ".join(list(reply)[:6]) if isinstance(reply, dict) else str(reply)[:40]
-            diag.record("aoto", target,
-                        f"в ответе нет поля {spec['read']['field']} (в ответе: {keys})")
-            return
+    if all(value is not None for _a, _ok, value in results):
+        diag.resolved("aoto", target)
+        return
+    field = spec["read"]["field"]
+    parent = ".".join(field.split(".")[:-1]) or "ответе"
+    diag.record("aoto", target,
+                f"в ответе нет поля {field} (в {parent}: {_reply_keys(replies, field)})")
 
 
 # --- formatting (pure: data in, JSON-able data out) -------------------------
@@ -275,6 +295,23 @@ def _param(group: str, spec: dict, results) -> dict:
     return item
 
 
+def _controller_summary(group: str, specs: list[dict], results: dict) -> dict:
+    """How many of the group's controllers answered, and how many are in the group.
+
+    This is the group's headline number (the deck's `OK n/n`), NOT a parameter
+    count: a group of two controllers where one is down is "1/2 ok" no matter how
+    many parameters the page reads from it. A controller counts as ok only when it
+    answered EVERY parameter read for the group, so a flaky one is not called ok.
+    """
+    addrs = aoto.addresses(group)
+    failed: set[str] = set()
+    for spec in specs:
+        for addr, ok, _value in results.get((group, spec["label"])) or []:
+            if not ok:
+                failed.add(addr)
+    return {"total": len(addrs), "ok": sum(1 for a in addrs if a not in failed)}
+
+
 def _aoto_section(specs: list[dict], results: dict) -> list[dict]:
     test_specs = [s for s in specs if s["read"]["field"] == _TEST_FIELD]
     screen_labels = {s["label"] for s in specs if s["read"]["field"] == _SCREEN_FIELD}
@@ -288,7 +325,8 @@ def _aoto_section(specs: list[dict], results: dict) -> list[dict]:
                 params.append(_screen_param(group, spec, res, test_results))
             else:
                 params.append(_param(group, spec, res))
-        out.append({"group": group, "params": params})
+        out.append({"group": group, "params": params,
+                    "controllers": _controller_summary(group, specs, results)})
     return out
 
 

@@ -143,6 +143,50 @@ def test_aoto_values_aggregate_like_the_deck(world):
     assert _params(snap, "Зал2")["Яркость"]["percent"] == "20%"     # of the default ceiling
 
 
+def _group(snapshot, name):
+    return next(g for g in snapshot["aoto"] if g["group"] == name)
+
+
+def test_group_headline_counts_controllers_not_parameters(world):
+    """The group's headline number is the deck's `OK n/n`, so a two-controller group
+    with one controller down reads 1/2 -- not "N of N params are not ok"."""
+    webstatus.refresh()
+    snap = webstatus.snapshot()
+    assert len(_params(snap, "Зал1")) == 2                          # Яркость + Гамма
+    assert _group(snap, "Зал1")["controllers"] == {"ok": 2, "total": 2}
+    assert _group(snap, "Зал2")["controllers"] == {"ok": 1, "total": 1}
+
+    world["replies"][("Зал1", "/getGlobalSettings")].pop("10.0.0.2:8080")   # one controller dies
+    webstatus.refresh()
+    assert _group(webstatus.snapshot(), "Зал1")["controllers"] == {"ok": 1, "total": 2}
+
+    world["replies"][("Зал1", "/getGlobalSettings")] = {}           # the whole group dies
+    webstatus.refresh()
+    assert _group(webstatus.snapshot(), "Зал1")["controllers"] == {"ok": 0, "total": 2}
+
+
+def test_group_without_addresses_has_no_controllers(world, monkeypatch):
+    monkeypatch.setattr(aoto, "_groups", {"Пусто": []})
+    webstatus.refresh()
+    assert _group(webstatus.snapshot(), "Пусто")["controllers"] == {"ok": 0, "total": 0}
+
+
+def test_a_controller_that_answered_one_endpoint_only_is_not_ok(world, monkeypatch):
+    """A flaky controller must not be counted as ok just because one reply landed."""
+    monkeypatch.setattr(aotopresets, "_parameters", [
+        {"name": "Тест", "set": {"path": "/setTest", "key": "testPicEn"},
+         "get": {"path": "/getDataBaseInputInfo", "field": "obj.testPicEn",
+                 "body": {"id": 1}}},
+    ])
+    world["replies"][("Зал1", "/getDataBaseInputInfo")] = {
+        "10.0.0.1:8080": {"obj": {"testPicEn": 0}}}                 # .2 did not answer here
+    webstatus.refresh()
+    snap = webstatus.snapshot()
+    assert _params(snap, "Зал1")["Яркость"]["state"] == "ok"        # getGlobalSettings was fine
+    assert _params(snap, "Зал1")["Тест"]["state"] == "partial"
+    assert _group(snap, "Зал1")["controllers"] == {"ok": 1, "total": 2}
+
+
 def test_disagreeing_controllers_are_mixed_with_a_breakdown(world):
     world["replies"][("Зал1", "/getGlobalSettings")]["10.0.0.2:8080"] = {
         "obj": {"brightness": 800, "gammaCoefficient": 2.2}}
@@ -377,17 +421,33 @@ def test_a_broken_journal_is_explained_and_keeps_the_page(world, monkeypatch):
 # --- freshness --------------------------------------------------------------
 def test_a_reply_without_the_field_says_so_in_the_log(world):
     """The device answered, but the parameter is not in the reply -- that is a
-    different problem from 'unreachable', and the log window must say which."""
+    different problem from 'unreachable', and the log window must say which. The
+    message names the object the field should live in, not the always-the-same
+    top-level keys."""
     table = world["replies"][("Зал2", "/getGlobalSettings")]
     table["10.0.0.3:8080"] = {"obj": {"brightness": 300}}      # no gammaCoefficient
     webstatus.refresh()
     entries = [(e["source"], e["target"], e["message"]) for e in diag.entries()]
     assert entries == [("aoto", "Зал2/Гамма",
-                        "в ответе нет поля obj.gammaCoefficient (в ответе: obj)")]
+                        "в ответе нет поля obj.gammaCoefficient (в obj: brightness)")]
 
     table["10.0.0.3:8080"] = {"obj": {"brightness": 300, "gammaCoefficient": 2.4}}
     webstatus.refresh()
     assert diag.entries() == []                                # fixed -> row disappears
+
+
+def test_a_silent_controller_is_not_reported_as_a_missing_field(world):
+    """One controller down must not produce 'the reply has no such field': that is a
+    timeout (logged with its URL by aoto._send) and blaming the field misleads."""
+    world["replies"][("Зал1", "/getGlobalSettings")].pop("10.0.0.2:8080")
+    webstatus.refresh()
+    assert diag.entries() == []
+    assert _params(webstatus.snapshot(), "Зал1")["Яркость"]["value"] == "1200 (1/2)"
+
+    # ... and a stale field complaint from before is cleared when that happens
+    diag.record("aoto", "Зал1/Яркость", "в ответе нет поля obj.brightness (в obj: gammaCoefficient)")
+    webstatus.refresh()
+    assert diag.entries() == []
 
 
 def test_snapshot_carries_the_problem_count(world):

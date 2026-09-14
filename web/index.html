@@ -59,7 +59,9 @@
   /* --- AOTO: one block per group, inside it one cluster per device section --- */
   .group + .group { margin-top: .3rem; border-top: 1px solid var(--line); padding-top: .3rem; }
   .ghead { display: flex; align-items: baseline; gap: .4rem; }
-  .ghead b { font-weight: 600; }
+  /* The group name is the block's headline, so it must stay readable even when
+     fit() has shrunk the whole page: max() gives it a floor in real pixels. */
+  .ghead b { font-weight: 600; font-size: max(1.25rem, 15px); }
   .chip { font-size: .72rem; padding: 0 .35rem; border-radius: 4px; background: #21262d; color: var(--dim); }
   .chip.ok { color: var(--ok); } .chip.mixed { color: var(--mixed); } .chip.err { color: var(--bad); }
   .shead {
@@ -181,11 +183,21 @@ function groupCard(g) {
   const card = el("div", "group");
   const head = el("div", "ghead");
   head.append(el("b", null, g.group));
+  // The headline number is about CONTROLLERS (the deck's "OK n/n"), not about
+  // parameters: a group of two controllers with one down is "1/2 ок", however
+  // many values the page reads from it.
+  const ctl = g.controllers || { ok: 0, total: 0 };
   const bad = g.params.filter((p) => p.state === "error").length;
   const mixed = g.params.filter((p) => p.state === "mixed" || p.state === "partial").length;
-  const cls = bad ? "err" : (mixed ? "mixed" : "ok");
-  const text = bad === g.params.length ? "нет связи"
-    : (bad || mixed ? `${bad + mixed} из ${g.params.length} не ок` : `${g.params.length} ок`);
+  let cls, text;
+  if (!ctl.total) {
+    cls = "err"; text = "нет адресов";
+  } else {
+    cls = ctl.ok === 0 ? "err" : (ctl.ok === ctl.total && !bad && !mixed ? "ok" : "mixed");
+    text = ctl.ok + "/" + ctl.total + " ок";
+    // Controllers fine but a value still missing (a reply without the field): say so.
+    if (ctl.ok === ctl.total && (bad || mixed)) text += ` · ${bad + mixed} парам. не ок`;
+  }
   head.append(el("span", "chip " + cls, text));
   card.append(head);
 
