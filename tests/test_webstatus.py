@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from core import aoto, aotopresets, pcbrowser, pixelhue, webstatus
+from core import aoto, aotopresets, diag, pcbrowser, pixelhue, webstatus
 from core.config import WEB_PAGE, WEB_REFRESH_INTERVAL
 
 
@@ -20,6 +20,7 @@ def world(monkeypatch):
     monkeypatch.setattr(webstatus, "_read_at", None)
     monkeypatch.setattr(webstatus, "_viewer_until", 0.0)
     monkeypatch.setattr(webstatus, "_wake", threading.Event())
+    monkeypatch.setattr(diag, "_items", {})
 
     groups = {"Зал1": ["10.0.0.1:8080", "10.0.0.2:8080"], "Зал2": ["10.0.0.3:8080"]}
     monkeypatch.setattr(aoto, "_groups", dict(groups))
@@ -219,6 +220,35 @@ def test_pixelhue_section_when_the_device_is_down(world, monkeypatch):
 
 
 # --- freshness --------------------------------------------------------------
+def test_a_reply_without_the_field_says_so_in_the_log(world):
+    """The device answered, but the parameter is not in the reply -- that is a
+    different problem from 'unreachable', and the log window must say which."""
+    table = world["replies"][("Зал2", "/getGlobalSettings")]
+    table["10.0.0.3:8080"] = {"obj": {"brightness": 300}}      # no gammaCoefficient
+    webstatus.refresh()
+    entries = [(e["source"], e["target"], e["message"]) for e in diag.entries()]
+    assert entries == [("aoto", "Зал2/Гамма",
+                        "в ответе нет поля obj.gammaCoefficient (в ответе: obj)")]
+
+    table["10.0.0.3:8080"] = {"obj": {"brightness": 300, "gammaCoefficient": 2.4}}
+    webstatus.refresh()
+    assert diag.entries() == []                                # fixed -> row disappears
+
+
+def test_snapshot_carries_the_problem_count(world):
+    """The header badge counts what core/diag currently has open."""
+    webstatus.refresh()
+    assert webstatus.snapshot()["problems"] == 0
+    diag.record("aoto", "http://10.0.0.1:8080/x", "timed out")
+    assert webstatus.snapshot()["problems"] == 1
+
+
+def test_log_entries_are_the_open_problems(world):
+    diag.record("aoto", "http://10.0.0.1:8080/x", "timed out")
+    assert webstatus.log_entries() == diag.entries()
+    assert webstatus.log_entries()[0]["target"] == "http://10.0.0.1:8080/x"
+
+
 def test_snapshot_is_instant_and_reports_age_and_a_viewer(world):
     assert webstatus.watched() is False
     empty = webstatus.snapshot()                                     # before any read

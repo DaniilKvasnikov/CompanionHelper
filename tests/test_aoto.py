@@ -4,10 +4,11 @@ Real HTTP is faked by monkeypatching aoto._request; disk is used only for the
 catalog-loading tests via tmp files.
 """
 import json
+import urllib.error
 
 import pytest
 
-from core import aoto
+from core import aoto, diag
 from core.config import COLORS
 from core.constants import After, Kind
 from core.model import ActionNode, MenuNode
@@ -51,7 +52,66 @@ def test_load_commands_ignores_labelless_note_objects(tmp_path, monkeypatch):
 
 def test_load_commands_missing_file_is_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(aoto, "AOTO_COMMANDS_FILE", tmp_path / "nope.json")
+    diag.clear()
     assert aoto._load_commands() == []
+    # the log window says WHY the Aoto tab is empty
+    assert [(e["source"], e["target"]) for e in diag.entries()] == [("aoto", "команды")]
+
+
+# --- why a read failed (core/diag) -----------------------------------------
+def test_send_records_the_url_and_reason_then_clears_it(monkeypatch):
+    """A failing request is logged with its exact URL; a working one clears it."""
+    diag.clear()
+    url = "http://10.0.0.9:8080/ng_ctrl_sys/x"
+
+    def boom(req, timeout=None):
+        raise urllib.error.URLError("timed out")
+
+    monkeypatch.setattr(aoto.urllib.request, "urlopen", boom)
+    assert aoto._send("10.0.0.9:8080", {"path": "/ng_ctrl_sys/x", "body": {}}) == (False, "")
+    entry = diag.entries()[0]
+    assert (entry["source"], entry["target"], entry["message"]) == ("aoto", url, "timed out")
+
+    class _Resp:
+        def read(self):
+            return b'{"code": 0}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(aoto.urllib.request, "urlopen", lambda req, timeout=None: _Resp())
+    assert aoto._send("10.0.0.9:8080", {"path": "/ng_ctrl_sys/x", "body": {}}) == (True, '{"code": 0}')
+    assert diag.entries() == []                     # the device answered again
+
+
+def test_send_records_an_http_error_status(monkeypatch):
+    diag.clear()
+
+    def boom(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(aoto.urllib.request, "urlopen", boom)
+    aoto._send("10.0.0.9:8080", {"path": "/wrong/path", "body": {}})
+    assert diag.entries()[0]["message"] == "HTTP 404"
+
+
+def test_a_group_file_without_addresses_is_reported(tmp_path, monkeypatch):
+    d = tmp_path / "groups"
+    d.mkdir()
+    (d / "01_Пустая.txt").write_text("# только комментарии\n@max = 900\n", encoding="utf-8")
+    monkeypatch.setattr(aoto, "AOTO_GROUPS_DIR", d)
+    diag.clear()
+    aoto._load_groups_and_maxima()
+    entries = diag.entries()
+    assert [(e["source"], e["target"]) for e in entries] == [("aoto", "группа Пустая")]
+    assert "01_Пустая.txt" in entries[0]["message"]
+
+    (d / "01_Пустая.txt").write_text("10.0.0.1:8080\n", encoding="utf-8")
+    aoto._load_groups_and_maxima()
+    assert diag.entries() == []
 
 
 # --- response extraction --------------------------------------------------

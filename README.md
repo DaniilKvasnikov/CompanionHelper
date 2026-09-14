@@ -38,7 +38,7 @@ Two transports, opposite directions:
 - **"Sync" menu** — run [FreeFileSync](https://freefilesync.org/) batch jobs from the deck. Configure jobs as `(label, path-to-.ffs_batch)` pairs; each press runs `FreeFileSync.exe` on that batch and shows the result.
 - **"Develop" menu** — **Pull & Restart** runs `git pull` on the project and restarts the server so the new code takes effect, and **Открыть статус** opens the **web status page** in this machine's browser, straight from the deck.
 - **Progress variable** — a Companion custom variable `$(custom:Progress)` filled 0→100 as the next auto-refresh approaches, so an auto-updating page can show a progress bar.
-- **Web status page** — open `http://<this machine>:7878/` in a browser to watch the live state of everything the deck can turn: every Aoto parameter of every group (brightness in nits *and* % of the group's `@max` ceiling, HDR, gamma, colour temperature, screen-test values, … aggregated across the controllers exactly as the deck shows them, with a per-controller breakdown when they disagree), the PixelHue node/flags/screens/presets, and the ping status of the PCs in the active PDQ list. It is **read-only** — nothing on it writes to a device or to the deck. The page polls the server once a second, and while a tab is open the server re-reads the devices every `WEB_REFRESH_INTERVAL` (2 s) and shows how old the data is; close the tab and the extra polling stops (`WEB_IDLE_TIMEOUT`).
+- **Web status page** — open `http://<this machine>:7878/` in a browser to watch the live state of everything the deck can turn: every Aoto parameter of every group (brightness in nits *and* % of the group's `@max` ceiling, HDR, gamma, colour temperature, screen-test values, … aggregated across the controllers exactly as the deck shows them, with a per-controller breakdown when they disagree), the PixelHue node/flags/screens/presets, and the ping status of the PCs in the active PDQ list. It is **read-only** — nothing on it writes to a device or to the deck — and it is built to fit **one screen without scrolling**: three panels side by side, and the page shrinks its own font if the content would overflow (details that don't fit live in tooltips). The page polls the server once a second, and while a tab is open the server re-reads the devices every `WEB_REFRESH_INTERVAL` (2 s) and shows how old the data is; close the tab and the extra polling stops (`WEB_IDLE_TIMEOUT`). The **Логи** button opens a separate window that explains **why** something is not being read — the exact address/URL tried, what came back (`timed out`, `HTTP 404`, «в ответе нет поля obj.brightness», «в файле … нет адресов контроллеров», «не читается база PDQ») and how often — so "aoto не в сети" becomes a concrete, fixable reason.
 
 ## Menu tree conventions
 
@@ -82,7 +82,7 @@ python main.py                    # serves on 0.0.0.0:7878
 - `POST /press?page=&row=&col=` — called by every deck button on press.
 - `POST /reload` — rebuild the menu tree from disk and redraw active pages (use after editing `menus/`).
 - `POST /touch/buttons` / `POST /touch/ping` — a TouchDesigner client posts its deck buttons / keeps them alive (see the Touch feature above).
-- `GET /` — the read-only **web status page**; `GET /status` — the JSON it renders (see the feature list above).
+- `GET /` — the read-only **web status page**; `GET /status` — the JSON it renders; `GET /logs` — a window that explains **why** something is not being read (which address was tried, what came back), `GET /logs.json` — its data. See the feature list above.
 
 **Two decks?** One server can drive several Stream Decks at once. Each deck's buttons send their own Companion page number, every page keeps its own menu state, and `DECK_PAGES` (in `config.local.json`, e.g. `["1", "2"]`) lists the pages to draw at startup so neither deck starts blank.
 
@@ -134,10 +134,11 @@ core/
   develop.py       the "Develop" git-pull + restart / open-status-page tab
   progress.py      the $(custom:Progress) refresh progress bar
   webstatus.py     the read-only web status page (GET / and /status)
+  diag.py          the "why did this read get no data" problem ring (GET /logs)
   feedback.py      background poller for feedback buttons
   state.py         per-page navigation state
 menus/             the menu hierarchy (folders = submenus, files = buttons)
-web/               the status page markup (index.html; edit it without restarting)
+web/               the status page (index.html) and its log window (logs.html)
 aoto/              Aoto groups (groups/*.txt), commands (commands.json) and parameter presets (presets/)
 touch/             the TouchDesigner client template (client.example.py; the deck's Touch buttons come from TD)
 pc_aliases.example.txt  template for pc_aliases.txt (see "Machine-local configuration")

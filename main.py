@@ -97,6 +97,18 @@ def status_data():
     return webstatus.snapshot()
 
 
+@app.get("/logs", response_class=HTMLResponse)
+def logs_page():
+    """The log window (web/logs.html): why a value is not being read right now."""
+    return HTMLResponse(webstatus.logs_page_html())
+
+
+@app.get("/logs.json")
+def logs_data():
+    """The open problems the log window renders, most recently seen first."""
+    return {"problems": webstatus.log_entries()}
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host=config.HOST, port=config.PORT)
 

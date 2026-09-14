@@ -33,11 +33,12 @@ import logging
 import threading
 import time
 
-from . import aoto, aotopresets, pcbrowser, pixelhue
+from . import aoto, aotopresets, diag, pcbrowser, pixelhue
 from .config import (
     AOTO_BRIGHTNESS_STATUS_LABEL,
     PORT,
     WEB_IDLE_TIMEOUT,
+    WEB_LOGS_PAGE,
     WEB_PAGE,
     WEB_REFRESH_INTERVAL,
 )
@@ -131,11 +132,30 @@ def _read_group(group: str, specs: list[dict]) -> dict[tuple[str, str], list]:
                                         "body": read.get("body")})
         for spec in group_specs:
             field = spec["read"]["field"]
-            out[(group, spec["label"])] = [
+            results = [
                 (addr, ok, aoto.field_value(reply, field) if ok else None)
                 for addr, ok, reply in replies
             ]
+            out[(group, spec["label"])] = results
+            _note_missing_field(group, spec, replies, results)
     return out
+
+
+def _note_missing_field(group: str, spec: dict, replies: list, results: list) -> None:
+    """Say why a parameter shows nothing when the device DID answer.
+
+    Transport failures are already logged (with their URL) by aoto._send; this
+    covers the other silent case: the reply simply has no such field."""
+    target = f"{group}/{spec['label']}"
+    if results and all(ok and value is not None for _a, ok, value in results):
+        diag.resolved("aoto", target)
+        return
+    for _addr, ok, reply in replies:
+        if ok:
+            keys = ", ".join(list(reply)[:6]) if isinstance(reply, dict) else str(reply)[:40]
+            diag.record("aoto", target,
+                        f"в ответе нет поля {spec['read']['field']} (в ответе: {keys})")
+            return
 
 
 # --- formatting (pure: data in, JSON-able data out) -------------------------
@@ -242,6 +262,7 @@ def _pull_pixelhue() -> None:
         pixelhue.refresh_now()
     except Exception as e:  # noqa: BLE001 - the page keeps showing the other sections
         log.warning("pixelhue pull for the status page failed: %s", e)
+        diag.record("web", "обновление статуса", f"pixelhue: {e}"[:120])
 
 
 def refresh() -> None:
@@ -285,7 +306,13 @@ def snapshot() -> dict:
     if age is None or age > WEB_REFRESH_INTERVAL:
         _wake.set()
     return {**snap, "age": age, "interval": WEB_REFRESH_INTERVAL,
+            "problems": diag.problems(),
             "stale": age is None or age > WEB_REFRESH_INTERVAL * 2}
+
+
+def log_entries() -> list[dict]:
+    """The open problems, for the log window (GET /logs.json)."""
+    return diag.entries()
 
 
 def watched() -> bool:
@@ -309,6 +336,7 @@ def start() -> None:
                     refresh()
                 except Exception as e:  # noqa: BLE001 - the page must never die
                     log.warning("web status refresh failed: %s", e)
+                    diag.record("web", "обновление статуса", str(e)[:120])
             _wake.clear()
             _wake.wait(WEB_REFRESH_INTERVAL)
 
@@ -328,11 +356,20 @@ _FALLBACK_PAGE = """<!doctype html>
 
 def page_html() -> str:
     """The page markup (config.WEB_PAGE), re-read per request so edits land live."""
+    return _read_page(WEB_PAGE)
+
+
+def logs_page_html() -> str:
+    """The log window markup (config.WEB_LOGS_PAGE), also re-read per request."""
+    return _read_page(WEB_LOGS_PAGE)
+
+
+def _read_page(path) -> str:
     try:
-        return WEB_PAGE.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8")
     except Exception as e:  # noqa: BLE001 - a missing page must not 500
-        log.warning("web status page unreadable (%s): %s", WEB_PAGE, e)
-        return _FALLBACK_PAGE.format(page=html.escape(str(WEB_PAGE)), error=html.escape(str(e)))
+        log.warning("web page unreadable (%s): %s", path, e)
+        return _FALLBACK_PAGE.format(page=html.escape(str(path)), error=html.escape(str(e)))
 
 
 def page_url() -> str:

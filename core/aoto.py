@@ -26,6 +26,7 @@ import logging
 import re
 import threading
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -52,6 +53,7 @@ from .config import (
     COLORS,
 )
 from .constants import After, Kind
+from . import diag
 from .model import ActionNode, MenuNode
 
 log = logging.getLogger("aoto")
@@ -124,6 +126,12 @@ def _load_groups_and_maxima() -> tuple[dict[str, list[str]], dict[str, int | Non
         label = _group_label(p.stem)
         groups[label] = addrs
         maxima[label] = maximum
+        # An empty group file is why nothing appears for that group: say so once.
+        target = f"группа {label}"
+        if addrs:
+            diag.resolved("aoto", target)
+        else:
+            diag.record("aoto", target, f"в файле {p.name} нет адресов контроллеров")
     return groups, maxima
 
 
@@ -136,10 +144,13 @@ def _load_commands() -> list[dict]:
     try:
         data = json.loads(AOTO_COMMANDS_FILE.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        diag.record("aoto", "команды", f"нет файла {AOTO_COMMANDS_FILE.name}")
         return []
     except Exception as e:  # noqa: BLE001 - missing/invalid config must not crash
         log.warning("aoto commands.json unreadable/invalid: %s", e)
+        diag.record("aoto", "команды", f"{AOTO_COMMANDS_FILE.name}: {e}"[:120])
         return []
+    diag.resolved("aoto", "команды")
     return [c for c in data if isinstance(c, dict) and c.get("label")]
 
 
@@ -165,7 +176,11 @@ def _cached_results(group: str, label: str) -> list[tuple[str, bool, object]]:
 
 # --- HTTP -----------------------------------------------------------------
 def _send(addr: str, cmd: dict) -> tuple[bool, str]:
-    """Send one command to one controller. Returns (ok, raw reply body)."""
+    """Send one command to one controller. Returns (ok, raw reply body).
+
+    A failure is recorded in core/diag with the exact URL and the reason, and a
+    success clears that URL's problems -- the status page's log window shows
+    exactly this when a value refuses to appear."""
     url = f"http://{addr}{cmd.get('path', '')}"
     body = cmd.get("body")
     data = json.dumps(body).encode("utf-8") if body is not None else None
@@ -176,9 +191,22 @@ def _send(addr: str, cmd: dict) -> tuple[bool, str]:
     )
     try:
         with urllib.request.urlopen(req, timeout=AOTO_HTTP_TIMEOUT) as resp:
-            return (True, resp.read().decode("utf-8", "replace"))
-    except Exception:  # noqa: BLE001 - unreachable/timeout/HTTP error
+            text = resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:        # answered, but not with a 2xx
+        diag.record("aoto", url, f"HTTP {e.code}")
         return (False, "")
+    except Exception as e:  # noqa: BLE001 - unreachable/timeout/DNS
+        diag.record("aoto", url, _reason(e))
+        return (False, "")
+    diag.resolved("aoto", url)
+    return (True, text)
+
+
+def _reason(e: Exception) -> str:
+    """A short reason for a failed request ('timed out', 'connection refused', ...)."""
+    text = str(e).strip() or type(e).__name__
+    text = text.replace("<urlopen error ", "").rstrip(">")
+    return text[:120]
 
 
 def _request(addr: str, cmd: dict) -> tuple[bool, object]:

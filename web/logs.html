@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompanionHelper — логи</title>
+<style>
+  :root {
+    --bg: #0f1114; --card: #171b21; --line: #262d37; --text: #dde1e6;
+    --dim: #8b949e; --ok: #4ec97b; --bad: #ff7b72;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap;
+    padding: .6rem .8rem; background: rgba(15,17,20,.95); border-bottom: 1px solid var(--line);
+  }
+  header h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+  header .note { color: var(--dim); }
+  header .n { color: var(--bad); font-variant-numeric: tabular-nums; }
+  header .n.calm { color: var(--ok); }
+  main { padding: .6rem .8rem 2rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: .3rem .5rem .3rem 0; vertical-align: top; }
+  th {
+    color: var(--dim); font-weight: 600; font-size: .76rem; text-transform: uppercase;
+    letter-spacing: .06em; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  td { border-top: 1px solid rgba(255,255,255,.05); }
+  td.time { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.count { color: var(--bad); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.source { white-space: nowrap; }
+  td.target { font-family: ui-monospace, Consolas, monospace; font-size: .86rem; word-break: break-all; }
+  td.why { color: #ffb4ae; }
+  .empty { color: var(--ok); padding-top: 1rem; }
+  .hint { color: var(--dim); padding-top: .8rem; }
+  code { background: #21262d; padding: 0 .25rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CompanionHelper · логи</h1>
+  <span class="note">открытые проблемы: <span class="n" id="count">…</span></span>
+  <span class="note" id="meta"></span>
+</header>
+<main>
+  <div id="empty" class="empty" hidden>Проблем нет — всё читается.</div>
+  <table id="table" hidden>
+    <thead>
+      <tr><th>последний раз</th><th>×</th><th>источник</th><th>что читали</th><th>почему не вышло</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="hint">
+    Здесь только <b>текущие</b> проблемы: как только чтение заработало, строка исчезает.
+    «Что читали» — это точный адрес/запись, к которой идёт обращение, поэтому по строке видно,
+    куда сервер стучится (например, в группе AOTO указан не тот IP) и что ему ответили.
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const POLL_MS = 1000;
+const rows = document.getElementById("rows");
+const table = document.getElementById("table");
+const empty = document.getElementById("empty");
+const count = document.getElementById("count");
+const meta = document.getElementById("meta");
+let failures = 0;
+
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+};
+
+function render(data) {
+  const problems = data.problems || [];
+  count.textContent = problems.length;
+  count.classList.toggle("calm", problems.length === 0);
+  meta.textContent = failures
+    ? "нет связи с сервером (" + failures + ") — список может быть неполным"
+    : "обновляется раз в секунду";
+  count.title = "";
+  table.hidden = problems.length === 0;
+  empty.hidden = problems.length > 0;
+
+  rows.replaceChildren();
+  for (const p of problems) {
+    const tr = el("tr");
+    const when = el("td", "time", p.last === p.first ? p.last : p.last);
+    when.title = "впервые: " + p.first + ", последний раз: " + p.last;
+    tr.append(when);
+    tr.append(el("td", "count", "×" + p.count));
+    tr.append(el("td", "source", p.source));
+    tr.append(el("td", "target", p.target));
+    tr.append(el("td", "why", p.message));
+    rows.append(tr);
+  }
+}
+
+async function tick() {
+  try {
+    const resp = await fetch("/logs.json", { cache: "no-store" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    render(await resp.json());
+    failures = 0;
+  } catch (e) {
+    failures += 1;
+    meta.textContent = "нет связи с сервером (" + failures + ") — показаны последние данные";
+  }
+  setTimeout(tick, POLL_MS);
+}
+
+tick();
+</script>
+</body>
+</html>

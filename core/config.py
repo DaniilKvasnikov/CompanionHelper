@@ -215,8 +215,13 @@ RESTART_DELAY = 1.5        # seconds after a pull before restarting (lets the de
 # markup lives in WEB_PAGE and is re-read per request, so it can be edited
 # without restarting the server. See core/webstatus.py.
 WEB_PAGE = PROJECT_ROOT / "web" / "index.html"
+WEB_LOGS_PAGE = PROJECT_ROOT / "web" / "logs.html"
 WEB_REFRESH_INTERVAL = 2.0   # seconds between device reads while a page watches
 WEB_IDLE_TIMEOUT = 15.0      # seconds after the last page request before reads stop
+
+# How many distinct problems core/diag.py keeps for the log window (GET /logs).
+# Each entry is one open problem with a repeat counter, so this is plenty.
+DIAG_MAX = 200
 
 # --- Colors (bg, fg) as CSS hex; sent to Companion as r/g/b 0-255 over OSC ---
 COLORS = {

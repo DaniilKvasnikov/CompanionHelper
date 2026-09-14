@@ -37,6 +37,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
+from . import diag
 from .config import (
     COLORS,
     PIXELHUE_FTB_TIME_MS,
@@ -86,6 +87,18 @@ _presets: list[Preset] = []          # presets, cached
 
 
 # --- JWT (see API guide §3.1) ---------------------------------------------
+def _diag(ok: bool, what: str, err=None) -> None:
+    """Tell core/diag why a device read failed, and clear it once it works again.
+
+    The status page's log window shows these, so an offline PixelHue says which
+    call failed and what came back instead of just 'offline'."""
+    target = f"{address()} {what}"
+    if ok:
+        diag.resolved("pixelhue", target)
+    else:
+        diag.record("pixelhue", target, (str(err) or "нет ответа")[:120])
+
+
 def _b64url(b: bytes) -> bytes:
     return base64.urlsafe_b64encode(b).rstrip(b"=")
 
@@ -106,12 +119,15 @@ def _make_token() -> str | None:
             payload = json.loads(resp.read().decode("utf-8", "replace"))
     except Exception as e:  # noqa: BLE001 - device down must not crash the deck
         log.warning("pixelhue open-detail failed: %s", e)
+        _diag(False, "node/open-detail", e)
         return None
     data = payload.get("data") or {}
     sn, start = data.get("sn"), data.get("startTime")
     if not sn or start is None:
         log.warning("pixelhue open-detail missing sn/startTime: %s", payload)
+        _diag(False, "node/open-detail", "в ответе нет sn/startTime")
         return None
+    _diag(True, "node/open-detail")
     return build_token(sn, str(start))
 
 
@@ -275,6 +291,7 @@ def _pull_node() -> None:
     with _lock:
         _node = data if ok and isinstance(data, dict) else None
         _last_err = None if ok else (str(data) if data else "недоступен")
+    _diag(ok and isinstance(data, dict), "node/detail", data)
 
 
 def _pull_screens() -> None:
@@ -284,6 +301,7 @@ def _pull_screens() -> None:
         parsed = parse_screens(data.get("list"))
         with _lock:
             _screens = parsed
+    _diag(ok and isinstance(data, dict), "screen/list-detail", data)
 
 
 def _pull_presets() -> None:
@@ -293,6 +311,7 @@ def _pull_presets() -> None:
         parsed = parse_presets(data.get("list"))
         with _lock:
             _presets = parsed
+    _diag(ok and isinstance(data, dict), "/unico/v1/preset", data)
 
 
 def _pull_mapping() -> None:
@@ -302,6 +321,7 @@ def _pull_mapping() -> None:
     if ok and isinstance(data, dict) and data.get("enable") in (0, 1):
         with _lock:
             _mapping = data["enable"]
+    _diag(ok and isinstance(data, dict), "node/interface-location", data)
 
 
 def _pull_all() -> None:

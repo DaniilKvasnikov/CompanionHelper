@@ -262,6 +262,32 @@ def test_pull_failure_keeps_screens_but_marks_node_offline(state, monkeypatch):
 
 
 # --- actions ----------------------------------------------------------------
+def test_a_failed_pull_is_explained_in_the_log(state, monkeypatch):
+    """An offline device says WHICH call failed and what came back (core/diag)."""
+    from core import diag
+
+    diag.clear()
+    monkeypatch.setattr(pixelhue, "_request", lambda *a, **k: (False, "HTTP 401"))
+    pixelhue._pull_node()
+    entry = diag.entries()[0]
+    assert entry["source"] == "pixelhue"
+    assert "node/detail" in entry["target"] and entry["message"] == "HTTP 401"
+
+    monkeypatch.setattr(pixelhue, "_request", lambda *a, **k: (True, {"online": 1}))
+    pixelhue._pull_node()
+    assert diag.entries() == []                  # the device answered again
+
+
+def test_a_reply_without_data_is_explained_too(state, monkeypatch):
+    from core import diag
+
+    diag.clear()
+    monkeypatch.setattr(pixelhue, "_request", lambda *a, **k: (True, "не JSON"))
+    pixelhue._pull_screens()
+    assert diag.entries()[0]["message"] == "не JSON"
+    assert "screen/list-detail" in diag.entries()[0]["target"]
+
+
 def test_refresh_now_and_node_state_are_the_public_seams(state, monkeypatch):
     """The status page reads node_state() and forces a re-read with refresh_now()."""
     assert pixelhue.node_state() == (None, None)

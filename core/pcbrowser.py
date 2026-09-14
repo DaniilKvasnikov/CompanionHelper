@@ -18,7 +18,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from . import pdq
+from . import diag, pdq
 from .runner import RunResult
 from .config import (
     COLORS,
@@ -26,6 +26,7 @@ from .config import (
     PC_DOWN,
     PC_UNKNOWN,
     PC_UP,
+    PDQ_DB_PATH,
     PING_INTERVAL,
     PING_TIMEOUT_MS,
     PING_WORKERS,
@@ -57,7 +58,9 @@ def refresh_catalog() -> None:
         packages = pdq.list_packages()
     except Exception as e:  # noqa: BLE001
         log.warning("catalog refresh failed: %s", e)
+        diag.record("pdq", str(PDQ_DB_PATH), f"не читается база PDQ: {e}"[:140])
         return
+    diag.resolved("pdq", str(PDQ_DB_PATH))
     with _lock:
         _lists = lists
         _packages = packages
@@ -108,7 +111,9 @@ def _refresh_members() -> None:
         hosts = pdq.target_list_members(name)
     except Exception as e:  # noqa: BLE001
         log.warning("members refresh failed for %r: %s", name, e)
+        diag.record("pdq", f"лист {name}", f"не читаются хосты: {e}"[:140])
         return
+    diag.resolved("pdq", f"лист {name}")
     with _lock:
         _members[name] = hosts
 
@@ -201,6 +206,7 @@ def start(on_update) -> None:
                 _ping_sweep()
             except Exception as e:  # noqa: BLE001 - never let the pinger die
                 log.warning("ping sweep failed: %s", e)
+                diag.record("ping", "свип", str(e)[:120])
             try:
                 on_update()
             except Exception as e:  # noqa: BLE001
