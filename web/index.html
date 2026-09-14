@@ -186,11 +186,15 @@ function groupCard(g) {
   // The headline number is about CONTROLLERS (the deck's "OK n/n"), not about
   // parameters: a group of two controllers with one down is "1/2 ок", however
   // many values the page reads from it.
-  const ctl = g.controllers || { ok: 0, total: 0 };
+  const ctl = g.controllers;   // absent until the server is restarted: fall back below
   const bad = g.params.filter((p) => p.state === "error").length;
   const mixed = g.params.filter((p) => p.state === "mixed" || p.state === "partial").length;
   let cls, text;
-  if (!ctl.total) {
+  if (!ctl) {
+    cls = bad ? "err" : (mixed ? "mixed" : "ok");
+    text = bad === g.params.length ? "нет связи"
+      : (bad || mixed ? `${bad + mixed} из ${g.params.length} не ок` : `${g.params.length} ок`);
+  } else if (!ctl.total) {
     cls = "err"; text = "нет адресов";
   } else {
     cls = ctl.ok === 0 ? "err" : (ctl.ok === ctl.total && !bad && !mixed ? "ok" : "mixed");
