@@ -1,8 +1,8 @@
 [
   { "note": "Each command is a button. Pressing it sends the request to EVERY controller in the selected group. Objects without a 'label' (like this one) are ignored, so they work as comments. Add/remove commands freely." },
 
-  { "note": "'hidden' command: polled in the background for state only, never shown as a button. Here it reads the current screen type; the Вход/Блэкаут/Фриз buttons turn green when the group's current type equals their 'active_value'. VERIFY the read path/field for your firmware (placeholder: getScreenStatus -> obj.type)." },
-  { "label": "screen-status", "hidden": true, "method": "POST", "path": "/ng_ctrl_sys/globalSettings/getScreenStatus", "body": {}, "response_field": "obj.type" },
+  { "note": "'hidden' command: polled in the background for state only, never shown as a button. The current screen type is read from /system/getSystemStatus -- field obj.screenStatus (verified on the 192.168.200.201 controller; the old placeholder path globalSettings/getScreenStatus does NOT exist there and answers HTTP 404). The Вход/Блэкаут/Фриз buttons turn green when the group's type equals their 'active_value'; the read scale is ASSUMED to match the setScreenStatus 'type' scale (0/1/2) -- confirm by pressing Блэкаут and watching the value on the status page." },
+  { "label": "screen-status", "hidden": true, "method": "POST", "path": "/ng_ctrl_sys/system/getSystemStatus", "body": {}, "response_field": "obj.screenStatus" },
 
   { "label": "Вход",    "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 0 }, "active_status": "screen-status", "active_value": 0 },
   { "label": "Блэкаут", "method": "POST", "path": "/ng_ctrl_sys/globalSettings/setScreenStatus", "body": { "type": 1 }, "active_status": "screen-status", "active_value": 1 },

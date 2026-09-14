@@ -122,7 +122,7 @@ OPTIONS), остальное `[ui]`.
 | `setColorSpace`, `getColorSpaceList` | выбор ЦП | `[ui]` |
 | `setDeepColor`, `setLowGrayBias`, `setLowAshCorrection`, `setBeyondGamut`, `setCalibrationSwitch`, `setGrayGain`, `setGrayCompensationEn`/`Level`, `setThermalCompensationEn`/`Coefficient`, `setSpectralCoefficient`, `setColorCompenCoefficient`, `setBeyondBrightness`, `setScreenExtensionLevel` | картинка/компенсации | `[ui]` |
 | `setScreenStatus` | вход-тип (Вход/Блэкаут/Фриз…) | ✓(set существует) |
-| **`getScreenStatus` — отсутствует (404 на этой FW)** | читать текущий нет чем | — |
+| **`getScreenStatus` — отсутствует (`HTTP 404` на этой FW)** | читать тем не менее есть чем: см. `/system/getSystemStatus` → `obj.screenStatus` (ниже) | — |
 | `setHDR` | HDR (write-шкала) | ✓ (через пресеты) |
 | `setVideoDelayFrame`, `setOSD`/`getOSD`, `setBrightnessOverdriveEn`, `setAutoBrightnessEn` | разное | `[ui]` |
 
@@ -153,6 +153,22 @@ OPTIONS), остальное `[ui]`.
 ### 4.5 Сеть/система/прочее
 
 - `/netParam/*` (IP/wifi), `/system/*` (`getMenu`, `getSystemStatus`, `getPoint`, `testCMD`, `exportConfigFile`, …), `/atiec/*`, `/inputEdid/*`, `/3dLutSetting/*`, `/canvas/*`, `/dmx/*`, `/onlineBox/sendOSD`, `/hardWareVersion/*`, `/version/upgrade`, `/boxFile/*`
+
+#### `getSystemStatus` — состояние экрана (найдено на живом устройстве)
+
+`POST /ng_ctrl_sys/system/getSystemStatus`, тело `{}` → `{"status":200,"msg":"SUCCESS","obj":{…}}`,
+в `obj` среди прочего:
+
+| Поле | Пример | Что это |
+|---|---|---|
+| `screenStatus` | `0` | **текущий вход-тип** — то, что пишет `setScreenStatus` (`type`); это и есть недостающий get для «Вход/Блэкаут/Фриз» |
+| `status` | `2` | состояние устройства (не экрана) |
+| `lockStatus`, `accessNotTipsStatus`, `boxLocationEnable`, `overTemperatureShutdown`, `fanSpeedControlEnable` | `0/1` | блокировка, подсказки, подсветка кабинета, перегрев, вентиляторы |
+| `logEn`, `gridShow`, `simpleDrawing`, `readCardInfo`, `inquireScanCardInfo` | | служебные настройки сервисного режима |
+
+⚠️ Шкала `screenStatus` (совпадает ли она с `type` у `setScreenStatus`: 0/1/2) на
+железе пока не подтверждена записью: значение читается как `0`, но соответствие
+«число → Вход/Блэкаут/Фриз» надо сверить, нажав Блэкаут и посмотрев значение.
 
 ---
 
@@ -190,10 +206,19 @@ OPTIONS), остальное `[ui]`.
 2. **`setColorTemple`** — опечатка в прошивке; `setColorTemperature` — 404.
 3. **`deepcolor` vs `DeepColor`** — поле объекта в нижнем регистре, сеттер в
    camelCase; не захватывать без проверки ключа.
-4. **`getScreenStatus` отсутствует** (404) — «Вход/Блэкаут/Фриз» можно только
-   писать (`setScreenStatus`), захватывать текущее нечем.
+4. **`getScreenStatus` отсутствует** (`HTTP 404`) — но состояние экрана всё же
+   читается: `POST /system/getSystemStatus` → `obj.screenStatus` (проверено на
+   живом контроллере). Значит «Вход/Блэкаут/Фриз» можно и писать
+   (`setScreenStatus`), и читать (этот путь); шкалу чтения ещё сверить с записью.
 5. **Чтение с телом**: `getGlobalSettings` отвечает на `{}`, а
-   `getDataBaseInputInfo` требует `{"id":1}` (иначе `obj: null`).
+   `getDataBaseInputInfo` требует **ровно `{"id":1}`** — с `{}`, `{"id":2}` или
+   `{"id":3}` приходит `obj: null` при `msg: SUCCESS`. При этом в ответе `obj.id`
+   — это id платы входа (нам вернулся `3`), а не тот, что отправлен в теле, так
+   что сравнивать их нельзя.
+6. **Несуществующий путь** отвечает нашему клиенту чистым `HTTP 404` (проверено
+   на `globalSettings/getScreenStatus` и на заведомо выдуманном пути) — именно
+   это и видно в окне логов, когда в `commands.json`/каталоге пресетов указан
+   путь, которого на прошивке нет.
 6. **`setTestImage` мержит** — безопасно писать цвета по одному; `testPicEn`
    отдельный параметр.
 7. OPTIONS на этом устройстве — рабочий способ проверки существования
