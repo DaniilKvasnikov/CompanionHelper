@@ -15,13 +15,22 @@
     font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
   }
   header {
-    position: sticky; top: 0; display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap;
-    padding: .6rem .8rem; background: rgba(15,17,20,.95); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: .7rem;
+    flex-wrap: wrap; padding: .55rem .8rem; background: rgba(15,17,20,.96);
+    border-bottom: 1px solid var(--line);
   }
   header h1 { margin: 0; font-size: 1rem; font-weight: 600; }
   header .note { color: var(--dim); }
   header .n { color: var(--bad); font-variant-numeric: tabular-nums; }
   header .n.calm { color: var(--ok); }
+  header .say { color: var(--ok); }
+  header .say.bad { color: var(--bad); }
+  button {
+    font: inherit; color: var(--text); background: #21262d; border: 1px solid var(--line);
+    border-radius: 6px; padding: .1rem .5rem; cursor: pointer;
+  }
+  button:hover { background: #2a313a; }
+  button.on { background: #2c2413; border-color: #5a4a1c; color: #f0b429; }
   main { padding: .6rem .8rem 2rem; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: .3rem .5rem .3rem 0; vertical-align: top; }
@@ -29,7 +38,9 @@
     color: var(--dim); font-weight: 600; font-size: .76rem; text-transform: uppercase;
     letter-spacing: .06em; border-bottom: 1px solid var(--line); white-space: nowrap;
   }
-  td { border-top: 1px solid rgba(255,255,255,.05); }
+  tbody tr { cursor: copy; border-top: 1px solid rgba(255,255,255,.05); }
+  tbody tr:hover { background: #1d2229; }
+  tbody tr.copied { background: #14291d; }
   td.time { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
   td.count { color: var(--bad); font-variant-numeric: tabular-nums; white-space: nowrap; }
   td.source { white-space: nowrap; }
@@ -37,14 +48,16 @@
   td.why { color: #ffb4ae; }
   .empty { color: var(--ok); padding-top: 1rem; }
   .hint { color: var(--dim); padding-top: .8rem; }
-  code { background: #21262d; padding: 0 .25rem; border-radius: 3px; }
+  .hint b { color: var(--text); }
 </style>
 </head>
 <body>
 <header>
   <h1>CompanionHelper · логи</h1>
-  <span class="note">открытые проблемы: <span class="n" id="count">…</span></span>
+  <span class="note">открытых проблем: <span class="n" id="count">…</span></span>
+  <button id="pause" title="Заморозить список, чтобы спокойно прочитать и скопировать">Пауза</button>
   <span class="note" id="meta"></span>
+  <span class="say" id="say"></span>
 </header>
 <main>
   <div id="empty" class="empty" hidden>Проблем нет — всё читается.</div>
@@ -55,9 +68,10 @@
     <tbody id="rows"></tbody>
   </table>
   <div class="hint">
-    Здесь только <b>текущие</b> проблемы: как только чтение заработало, строка исчезает.
-    «Что читали» — это точный адрес/запись, к которой идёт обращение, поэтому по строке видно,
-    куда сервер стучится (например, в группе AOTO указан не тот IP) и что ему ответили.
+    <b>Клик по строке — копирует её в буфер обмена</b> (порядок строк не меняется, но список живой:
+    кнопка «Пауза» замораживает его совсем). Здесь только <b>текущие</b> проблемы: как только чтение
+    заработало, строка исчезает. «Что читали» — точный адрес/запись, к которой идёт обращение, поэтому
+    по строке видно, куда сервер стучится (например, в группе AOTO указан не тот IP) и что ему ответили.
   </div>
 </main>
 
@@ -70,7 +84,11 @@ const table = document.getElementById("table");
 const empty = document.getElementById("empty");
 const count = document.getElementById("count");
 const meta = document.getElementById("meta");
+const say = document.getElementById("say");
+const pauseBtn = document.getElementById("pause");
 let failures = 0;
+let paused = false;
+let last = [];
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
@@ -79,36 +97,101 @@ const el = (tag, cls, text) => {
   return n;
 };
 
-function render(data) {
-  const problems = data.problems || [];
-  count.textContent = problems.length;
-  count.classList.toggle("calm", problems.length === 0);
-  meta.textContent = failures
-    ? "нет связи с сервером (" + failures + ") — список может быть неполным"
-    : "обновляется раз в секунду";
-  count.title = "";
-  table.hidden = problems.length === 0;
-  empty.hidden = problems.length > 0;
+// One line, ready to paste into a chat: source, what was read, why it failed.
+const lineOf = (p) => `[${p.first}] ${p.source}: ${p.target} -> ${p.message}` +
+  ` (повторов ${p.count}, последний раз ${p.last})`;
 
+// http://<lan-ip> is NOT a secure context, so navigator.clipboard may be absent:
+// fall back to the old textarea + execCommand trick. That one must run
+// SYNCHRONOUSLY inside the click (a browser only allows it on a user gesture),
+// which is why copyRow() below does not await anything before reaching it.
+function legacyCopy(text) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+function done(tr, problem, ok) {
+  if (ok) {
+    tr.classList.add("copied");
+    setTimeout(() => tr.classList.remove("copied"), 600);
+    flash("скопировано: " + problem.target);
+  } else {
+    flash("скопировать не вышло — выделите текст мышью и Ctrl+C", true);
+  }
+}
+
+function copyRow(tr, problem) {
+  const text = lineOf(problem);
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text)
+      .then(() => done(tr, problem, true))
+      .catch(() => done(tr, problem, legacyCopy(text)));
+    return;
+  }
+  done(tr, problem, legacyCopy(text));         // still inside the click gesture
+}
+
+function flash(text, bad) {
+  say.textContent = text;
+  say.classList.toggle("bad", !!bad);
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => { say.textContent = ""; }, 4000);
+}
+
+function render(problems) {
   rows.replaceChildren();
   for (const p of problems) {
     const tr = el("tr");
-    const when = el("td", "time", p.last === p.first ? p.last : p.last);
+    tr.title = "Нажмите, чтобы скопировать строку";
+    const when = el("td", "time", p.last);
     when.title = "впервые: " + p.first + ", последний раз: " + p.last;
     tr.append(when);
     tr.append(el("td", "count", "×" + p.count));
     tr.append(el("td", "source", p.source));
     tr.append(el("td", "target", p.target));
     tr.append(el("td", "why", p.message));
+    tr.addEventListener("click", () => copyRow(tr, p));
     rows.append(tr);
   }
+  table.hidden = problems.length === 0;
+  empty.hidden = problems.length > 0;
 }
+
+function show(problems) {
+  last = problems;
+  count.textContent = problems.length;
+  count.classList.toggle("calm", problems.length === 0);
+  meta.textContent = failures
+    ? "нет связи с сервером (" + failures + ") — список может быть неполным"
+    : (paused ? "обновление на паузе" : "обновляется раз в секунду");
+  if (!paused) render(problems);
+}
+
+pauseBtn.addEventListener("click", () => {
+  paused = !paused;
+  pauseBtn.classList.toggle("on", paused);
+  pauseBtn.textContent = paused ? "Продолжить" : "Пауза";
+  if (!paused) render(last);
+  show(last);
+});
 
 async function tick() {
   try {
     const resp = await fetch("/logs.json", { cache: "no-store" });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
-    render(await resp.json());
+    show((await resp.json()).problems || []);
     failures = 0;
   } catch (e) {
     failures += 1;

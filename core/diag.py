@@ -37,20 +37,21 @@ def record(source: str, target: str, message: str) -> None:
     """Note that `source` could not read `target`, and why.
 
     Called on every failed attempt: an identical problem only bumps its counter
-    and its `last` timestamp."""
+    and its `last` timestamp -- it does NOT move in the list, so the log window
+    (which refreshes every second) never reshuffles under the reader's eyes."""
     key = (source, str(target), str(message))
     now = time.strftime("%H:%M:%S")
     with _lock:
-        entry = _items.pop(key, None)          # pop+insert = most recent goes last
+        entry = _items.get(key)
         if entry is None:
             entry = {"source": source, "target": str(target), "message": str(message),
                      "count": 0, "first": now, "last": now}
             log.info("problem: %s %s -- %s", source, target, message)
             while len(_items) >= DIAG_MAX:      # drop the oldest problem
                 _items.pop(next(iter(_items)))
+            _items[key] = entry
         entry["count"] += 1
         entry["last"] = now
-        _items[key] = entry
 
 
 def resolved(source: str, target: str) -> None:
@@ -62,7 +63,7 @@ def resolved(source: str, target: str) -> None:
 
 
 def entries() -> list[dict]:
-    """Current problems, most recently seen first."""
+    """Current problems, newest FIRST SEEN first -- a fixed order per problem."""
     with _lock:
         return [dict(e) for e in reversed(_items.values())]
 

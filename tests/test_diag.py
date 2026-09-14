@@ -38,11 +38,15 @@ def test_a_different_message_is_a_different_problem(empty_log):
     assert diag.problems() == 2
 
 
-def test_entries_are_newest_seen_first(empty_log):
-    diag.record("aoto", "one", "boom")
-    diag.record("aoto", "two", "boom")
-    diag.record("aoto", "one", "boom")                      # seen again -> back to the top
-    assert [e["target"] for e in diag.entries()] == ["one", "two"]
+def test_entries_have_a_stable_order_newest_problem_first(empty_log):
+    """The log window refreshes every second: a repeat must NOT move its row."""
+    diag.record("aoto", "older", "boom")
+    diag.record("aoto", "newer", "boom")
+    assert [e["target"] for e in diag.entries()] == ["newer", "older"]
+
+    for _ in range(5):
+        diag.record("aoto", "older", "boom")            # still the older problem
+    assert [e["target"] for e in diag.entries()] == ["newer", "older"]
 
 
 def test_resolved_drops_only_that_target(empty_log):
