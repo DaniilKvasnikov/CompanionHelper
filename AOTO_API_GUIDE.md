@@ -166,9 +166,9 @@ OPTIONS), остальное `[ui]`.
 | `lockStatus`, `accessNotTipsStatus`, `boxLocationEnable`, `overTemperatureShutdown`, `fanSpeedControlEnable` | `0/1` | блокировка, подсказки, подсветка кабинета, перегрев, вентиляторы |
 | `logEn`, `gridShow`, `simpleDrawing`, `readCardInfo`, `inquireScanCardInfo` | | служебные настройки сервисного режима |
 
-⚠️ Шкала `screenStatus` (совпадает ли она с `type` у `setScreenStatus`: 0/1/2) на
-железе пока не подтверждена записью: значение читается как `0`, но соответствие
-«число → Вход/Блэкаут/Фриз» надо сверить, нажав Блэкаут и посмотрев значение.
+✅ Шкала `screenStatus` **совпадает** с `type` у `setScreenStatus` (0/1/2 → Вход/Блэкаут/Фриз) —
+проверено на устройстве пользователем, поэтому подсветка кнопок Вход/Блэкаут/Фриз и строка
+`screen-status` на странице статусов читаются верно.
 
 ---
 
