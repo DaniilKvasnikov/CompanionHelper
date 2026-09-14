@@ -33,14 +33,18 @@
   .btn .n { color: var(--bad); font-variant-numeric: tabular-nums; }
   .btn.calm .n { color: var(--dim); }
 
-  /* Four panels; AOTO gets double width because it carries a dozen values. */
+  /* Two rows of two panels instead of one long row: every panel gets real width
+     and the eye does not have to travel across the whole screen. AOTO and
+     PixelHue (the right column) are a little wider because they hold values. */
   main {
     flex: 1 1 auto; min-height: 0; display: grid; gap: .4rem; padding: .4rem .55rem .55rem;
-    grid-template-columns:
-      minmax(9rem, 0.85fr) minmax(17rem, 1.95fr) minmax(12rem, 1.15fr) minmax(9rem, 0.85fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
   @media (max-width: 70rem) { main { grid-template-columns: 1fr 1fr; overflow: auto; } }
-  @media (max-width: 46rem) { main { grid-template-columns: 1fr; overflow: auto; } }
+  @media (max-width: 46rem) {
+    main { grid-template-columns: 1fr; grid-template-rows: none; overflow: auto; }
+  }
   .panel {
     min-height: 0; overflow: auto; background: var(--card); border: 1px solid var(--line);
     border-radius: 8px; padding: .35rem .45rem .45rem;

@@ -17,11 +17,6 @@
       "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.colorTemperature" }
     },
     {
-      "name": "Масштаб",
-      "set": { "path": "/ng_ctrl_sys/globalSettings/setScal", "key": "scal" },
-      "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.scal" }
-    },
-    {
       "name": "DarkMagic",
       "set": { "path": "/ng_ctrl_sys/globalSettings/setDarkMagic", "key": "darkMagic" },
       "get": { "path": "/ng_ctrl_sys/globalSettings/getGlobalSettings", "field": "obj.darkMagic" }
