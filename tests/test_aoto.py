@@ -449,14 +449,14 @@ def test_brightness_limit_file_directive_wins(monkeypatch):
 
 
 def test_percent_step_of_limit(monkeypatch):
-    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_PERCENT", 5)
-    assert aoto._percent_step(1500) == 75
-    assert aoto._percent_step(1000) == 50
-    assert aoto._percent_step(1) == 1                       # never below 1
+    assert aoto._percent_step(1500, 5) == 75
+    assert aoto._percent_step(1000, 5) == 50
+    assert aoto._percent_step(1500, 1) == 15                # the 1% buttons
+    assert aoto._percent_step(1, 5) == 1                    # never below 1
+    assert aoto._percent_step(50, 1) == 1                   # round(0.5) -> 0 -> floored
 
 
 def test_adjust_brightness_pct_steps_5pct_of_max(bright, monkeypatch):
-    monkeypatch.setattr(aoto, "AOTO_BRIGHTNESS_PERCENT", 5)
     monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": 1500})   # 5% step = 75
     writes = {}
 
@@ -467,9 +467,26 @@ def test_adjust_brightness_pct_steps_5pct_of_max(bright, monkeypatch):
         return (True, None)
 
     monkeypatch.setattr(aoto, "_request", fake_request)
-    aoto._adjust_brightness_pct("Зал1", +1)
+    aoto._adjust_brightness_pct("Зал1", +1, 5)
     assert writes["10.0.0.1:8080"] == 175                   # 100 + 75
     assert writes["10.0.0.2:8080"] == 1500                  # 1490 + 75 -> clamped to the max
+
+
+def test_adjust_brightness_pct_1pct_steps_15_nits(bright, monkeypatch):
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": 1500})   # 1% step = 15
+    cur = {"10.0.0.1:8080": 10, "10.0.0.2:8080": 100}            # device state
+
+    def fake_request(addr, cmd):
+        if cmd.get("response_field"):
+            return (True, cur[addr])
+        cur[addr] = cmd["body"]["brightness"]
+        return (True, None)
+
+    monkeypatch.setattr(aoto, "_request", fake_request)
+    aoto._adjust_brightness_pct("Зал1", +1, 1)
+    assert cur == {"10.0.0.1:8080": 25, "10.0.0.2:8080": 115}
+    aoto._adjust_brightness_pct("Зал1", -1, 1)
+    assert cur == {"10.0.0.1:8080": 10, "10.0.0.2:8080": 100}
 
 
 def test_group_commands_adds_brightness_submenu(bright):
@@ -490,7 +507,7 @@ def test_brightness_children_layout_and_step_label(bright):
     node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
     kids = aoto._brightness_children(node)
     assert [k.name for k in kids] == ["brightness", "down", "up", "down5", "up5",
-                                      "step-half", "step", "step-double"]
+                                      "down1", "up1", "step-half", "step", "step-double"]
     assert next(k for k in kids if k.name == "step").label == "Шаг\n50"
     next(k for k in kids if k.name == "step-half").on_press()   # ÷2
     assert aoto.get_step() == 25
@@ -503,6 +520,26 @@ def test_brightness_children_have_5pct_buttons(bright):
     kids = {k.name: k for k in aoto._brightness_children(node)}
     assert kids["down5"].label == "Темнее 5%" and kids["down5"].after == After.RERENDER
     assert kids["up5"].label == "Ярче 5%" and kids["up5"].after == After.RERENDER
+
+
+def test_brightness_children_have_1pct_buttons(bright, monkeypatch):
+    node = MenuNode("__brightness__", None, "", context={"group": "Зал1"})
+    kids = {k.name: k for k in aoto._brightness_children(node)}
+    assert kids["down1"].label == "Темнее 1%" and kids["down1"].after == After.RERENDER
+    assert kids["up1"].label == "Ярче 1%" and kids["up1"].after == After.RERENDER
+
+    writes = {}                                             # pressing uses 1% of the ceiling
+
+    def fake_request(addr, cmd):
+        if cmd.get("response_field"):
+            return (True, 300)
+        writes[addr] = cmd["body"]["brightness"]
+        return (True, None)
+
+    monkeypatch.setattr(aoto, "_group_maxima", {"Зал1": 1000})   # 1% = 10
+    monkeypatch.setattr(aoto, "_request", fake_request)
+    kids["up1"].on_press()
+    assert set(writes.values()) == {310}
 
 
 def test_brightness_status_button_shows_cached_value(bright, monkeypatch):

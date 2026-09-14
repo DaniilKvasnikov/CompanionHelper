@@ -36,6 +36,7 @@ from .config import (
     AOTO_BRIGHTNESS_MAX_DIRECTIVE,
     AOTO_BRIGHTNESS_MIN,
     AOTO_BRIGHTNESS_PERCENT,
+    AOTO_BRIGHTNESS_PERCENT_FINE,
     AOTO_BRIGHTNESS_STATUS_LABEL,
     AOTO_BRIGHTNESS_STEP,
     AOTO_COMMANDS_FILE,
@@ -504,9 +505,9 @@ def brightness_limit(group: str) -> int:
     return AOTO_BRIGHTNESS_LIMITS.get(group, AOTO_BRIGHTNESS_LIMIT_DEFAULT)
 
 
-def _percent_step(limit: int) -> int:
-    """Step of the "Темнее/Ярче 5%" buttons: AOTO_BRIGHTNESS_PERCENT % of the limit."""
-    return max(1, round(limit * AOTO_BRIGHTNESS_PERCENT / 100))
+def _percent_step(limit: int, percent: int) -> int:
+    """Step of a "Темнее/Ярче N%" button: N % of the group's ceiling, never below 1."""
+    return max(1, round(limit * percent / 100))
 
 
 def _brightness_text(group: str, cmd: dict, results) -> str:
@@ -564,14 +565,14 @@ def _adjust_brightness(group: str, sign: int) -> str:
     return _adjust_brightness_by(group, sign, get_step())
 
 
-def _adjust_brightness_pct(group: str, sign: int) -> str:
-    """+/- by 5% of the group maximum (the '@max' file directive or config)."""
-    return _adjust_brightness_by(group, sign, _percent_step(brightness_limit(group)))
+def _adjust_brightness_pct(group: str, sign: int, percent: int) -> str:
+    """+/- by `percent` % of the group maximum (the '@max' file directive or config)."""
+    return _adjust_brightness_by(group, sign, _percent_step(brightness_limit(group), percent))
 
 
 def _brightness_children(node) -> list:
-    """The "Управление яркостью" submenu: current value, +/- (manual step and 5% of max),
-    and the manual-step controls."""
+    """The "Управление яркостью" submenu: current value, +/- (manual step, 5% and 1% of
+    max), and the manual-step controls."""
     group = node.context["group"]
     step = get_step()
     status = _command_by_label(AOTO_BRIGHTNESS_STATUS_LABEL)
@@ -593,12 +594,24 @@ def _brightness_children(node) -> list:
         on_press=lambda g=group: _adjust_brightness(g, +1),
     ))
     out.append(ActionNode(
-        name="down5", label="Темнее 5%", kind=Kind.COMMAND, after=After.RERENDER,
-        on_press=lambda g=group: _adjust_brightness_pct(g, -1),
+        name="down5", label=f"Темнее {AOTO_BRIGHTNESS_PERCENT}%", kind=Kind.COMMAND,
+        after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness_pct(g, -1, AOTO_BRIGHTNESS_PERCENT),
     ))
     out.append(ActionNode(
-        name="up5", label="Ярче 5%", kind=Kind.COMMAND, after=After.RERENDER,
-        on_press=lambda g=group: _adjust_brightness_pct(g, +1),
+        name="up5", label=f"Ярче {AOTO_BRIGHTNESS_PERCENT}%", kind=Kind.COMMAND,
+        after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness_pct(g, +1, AOTO_BRIGHTNESS_PERCENT),
+    ))
+    out.append(ActionNode(
+        name="down1", label=f"Темнее {AOTO_BRIGHTNESS_PERCENT_FINE}%", kind=Kind.COMMAND,
+        after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness_pct(g, -1, AOTO_BRIGHTNESS_PERCENT_FINE),
+    ))
+    out.append(ActionNode(
+        name="up1", label=f"Ярче {AOTO_BRIGHTNESS_PERCENT_FINE}%", kind=Kind.COMMAND,
+        after=After.RERENDER,
+        on_press=lambda g=group: _adjust_brightness_pct(g, +1, AOTO_BRIGHTNESS_PERCENT_FINE),
     ))
     out.append(ActionNode(
         name="step-half", label="Шаг ÷2", kind=Kind.COMMAND, after=After.RERENDER,

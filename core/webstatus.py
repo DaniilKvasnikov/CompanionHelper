@@ -207,6 +207,35 @@ def _brightness_percent(group: str, values: list) -> str | None:
     return f"{pcts[0]}%" if pcts[0] == pcts[-1] else f"{pcts[0]}-{pcts[-1]}%"
 
 
+# What the screen shows is a COMBINATION of two independent things: the device
+# reports one overlay at a time (obj.screenStatus -- the words come from the
+# command's own `labels` map in aoto/commands.json, so the deck and the page read
+# the same names), while the colour test pattern (obj.testPicEn, the deck's
+# «Тест») is a separate flag that can be on together with it. The words are
+# combined per controller BEFORE they are aggregated, so a group whose
+# controllers disagree still shows both combinations.
+_SCREEN_FIELD = "obj.screenStatus"
+_TEST_FIELD = "obj.testPicEn"
+_TEST_WORD = "тест цвет"
+
+
+def _test_on(value) -> bool:
+    """The test-pattern flag is on for 1 / '1' / true."""
+    return str(value).strip().lower() in ("1", "true", "on")
+
+
+def _screen_param(group: str, spec: dict, results, test_results) -> dict:
+    """The screen-status tile: the state's word, plus '+ тест цвет' while the test is on."""
+    test_by_addr = {addr: value for addr, ok, value in (test_results or []) if ok}
+    combined: list[tuple[str, bool, object]] = []
+    for addr, ok, value in (results or []):
+        word = _shown(value, spec["labels"])
+        if ok and _test_on(test_by_addr.get(addr)):
+            word = f"{word} + {_TEST_WORD}" if word is not None else _TEST_WORD
+        combined.append((addr, ok, word))
+    return _param(group, spec, combined)
+
+
 # The device groups its own API by section (/globalSettings/*, /input/*, /system/*),
 # so the page groups the parameters the same way instead of printing one long list:
 # a dozen values read much better as a few labelled clusters of tiles.
@@ -247,11 +276,20 @@ def _param(group: str, spec: dict, results) -> dict:
 
 
 def _aoto_section(specs: list[dict], results: dict) -> list[dict]:
-    return [
-        {"group": group,
-         "params": [_param(group, spec, results.get((group, spec["label"]))) for spec in specs]}
-        for group in aoto.groups()
-    ]
+    test_specs = [s for s in specs if s["read"]["field"] == _TEST_FIELD]
+    screen_labels = {s["label"] for s in specs if s["read"]["field"] == _SCREEN_FIELD}
+    out: list[dict] = []
+    for group in aoto.groups():
+        test_results = results.get((group, test_specs[0]["label"])) if test_specs else None
+        params = []
+        for spec in specs:
+            res = results.get((group, spec["label"]))
+            if spec["label"] in screen_labels and test_results is not None:
+                params.append(_screen_param(group, spec, res, test_results))
+            else:
+                params.append(_param(group, spec, res))
+        out.append({"group": group, "params": params})
+    return out
 
 
 def _pc_section() -> dict:

@@ -113,6 +113,7 @@ AOTO_BRIGHTNESS_LIMITS = {                 # per-group ceiling; key = group labe
 # Ceiling priority: the group-file directive (AOTO_BRIGHTNESS_MAX_DIRECTIVE in
 # aoto/groups/*.txt) > AOTO_BRIGHTNESS_LIMITS[group] > AOTO_BRIGHTNESS_LIMIT_DEFAULT.
 AOTO_BRIGHTNESS_PERCENT = 5                # "Темнее/Ярче 5%" buttons: % of the group ceiling
+AOTO_BRIGHTNESS_PERCENT_FINE = 1           # "Темнее/Ярче 1%" buttons: % of the group ceiling
 AOTO_BRIGHTNESS_MAX_DIRECTIVE = "@max"     # group-file line, e.g. "@max = 1500"
 
 # --- Aoto Dynamic Range / HDR control (a "Dynamic Range" submenu per group) ---

@@ -181,6 +181,75 @@ def test_labels_map_hdr_values_and_reach_the_page(world, monkeypatch):
     assert [c["value"] for c in hdr["controllers"]] == ["HLG", 3]
 
 
+# --- what is on the screen ---------------------------------------------------
+def _screen_world(world, monkeypatch, screens, tests):
+    """commands.json as the screen pair (state + colour test) and their replies."""
+    monkeypatch.setattr(aoto, "_commands", [
+        {"label": "screen-status", "hidden": True, "method": "POST",
+         "path": "/getSystemStatus", "body": {}, "response_field": "obj.screenStatus",
+         "labels": {"0": "картинка", "1": "блэкаут", "2": "фриз"}},
+        {"label": "Тест", "method": "POST", "path": "/getDataBaseInputInfo",
+         "body": {"id": 1}, "response_field": "obj.testPicEn", "labels": {"0": "выкл", "1": "вкл"}},
+    ])
+    world["replies"][("Зал1", "/getSystemStatus")] = {
+        addr: {"obj": {"screenStatus": v}} for addr, v in screens.items()}
+    world["replies"][("Зал1", "/getDataBaseInputInfo")] = {
+        addr: {"obj": {"testPicEn": v}} for addr, v in tests.items()}
+
+
+def test_screen_state_is_a_word_and_the_test_colour_is_a_combination(world, monkeypatch):
+    """obj.screenStatus -> картинка/блэкаут/фриз (the device's own words), and the
+    colour test pattern is a SEPARATE flag, so it is shown as a combination."""
+    _screen_world(world, monkeypatch,
+                  screens={"10.0.0.1:8080": 1, "10.0.0.2:8080": 0},
+                  tests={"10.0.0.1:8080": 0, "10.0.0.2:8080": 1})
+    webstatus.refresh()
+    params = _params(webstatus.snapshot(), "Зал1")
+    assert params["screen-status"]["value"] == "блэкаут/картинка + тест цвет"
+    assert [c["value"] for c in params["screen-status"]["controllers"]] == [
+        "блэкаут", "картинка + тест цвет"]
+    assert params["Тест"]["value"] == "выкл/вкл"                     # the flag keeps its own tile
+
+
+def test_screen_state_word_when_the_group_agrees(world, monkeypatch):
+    _screen_world(world, monkeypatch,
+                  screens={"10.0.0.1:8080": 2, "10.0.0.2:8080": 2},
+                  tests={"10.0.0.1:8080": 1, "10.0.0.2:8080": 1})
+    webstatus.refresh()
+    screen = _params(webstatus.snapshot(), "Зал1")["screen-status"]
+    assert screen["value"] == "фриз + тест цвет" and screen["state"] == "ok"
+
+    _screen_world(world, monkeypatch,                          # test switched off again
+                  screens={"10.0.0.1:8080": 2, "10.0.0.2:8080": 2},
+                  tests={"10.0.0.1:8080": 0, "10.0.0.2:8080": 0})
+    webstatus.refresh()
+    assert _params(webstatus.snapshot(), "Зал1")["screen-status"]["value"] == "фриз"
+
+
+def test_screen_state_keeps_an_unknown_value_raw(world, monkeypatch):
+    """A state the labels do not name is still shown (with the test, which is on)."""
+    _screen_world(world, monkeypatch,
+                  screens={"10.0.0.1:8080": 7, "10.0.0.2:8080": 7},
+                  tests={"10.0.0.1:8080": 1, "10.0.0.2:8080": 0})
+    webstatus.refresh()
+    screen = _params(webstatus.snapshot(), "Зал1")["screen-status"]
+    assert screen["value"] == "7 + тест цвет/7"
+
+
+def test_screen_state_without_a_test_command_is_just_the_word(world, monkeypatch):
+    """The combination needs the Тест command: without it the state stands alone."""
+    monkeypatch.setattr(aoto, "_commands", [
+        {"label": "screen-status", "hidden": True, "method": "POST",
+         "path": "/getSystemStatus", "body": {}, "response_field": "obj.screenStatus",
+         "labels": {"0": "картинка", "1": "блэкаут", "2": "фриз"}},
+    ])
+    world["replies"][("Зал1", "/getSystemStatus")] = {
+        "10.0.0.1:8080": {"obj": {"screenStatus": 1}},
+        "10.0.0.2:8080": {"obj": {"screenStatus": 1}}}
+    webstatus.refresh()
+    assert _params(webstatus.snapshot(), "Зал1")["screen-status"]["value"] == "блэкаут"
+
+
 # --- snapshot: PC and PixelHue ---------------------------------------------
 def test_pc_section_lists_hosts_with_alias_and_ping(world, monkeypatch):
     monkeypatch.setattr(pcbrowser, "_ping_at", time.monotonic() - 3.0)
